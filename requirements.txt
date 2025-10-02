@@ -1,0 +1,27 @@
+# Core Testing Framework
+pytest==8.3.2
+playwright==1.47.0
+
+# Allure Reporting
+allure-pytest==2.13.5
+
+# Database Support
+cx-Oracle==8.3.0
+oracledb==2.3.0
+SQLAlchemy==2.0.32
+
+# API Testing
+requests==2.32.3
+jsonschema==4.23.0
+
+# Utilities
+python-dotenv==1.0.1
+pyyaml==6.0.2
+faker==26.0.0
+openpyxl==3.1.5
+
+# Logging
+loguru==0.7.2
+
+# Data Handling
+pandas==2.2.2

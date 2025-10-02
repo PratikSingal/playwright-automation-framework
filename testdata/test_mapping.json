@@ -1,0 +1,22 @@
+{
+  "test_registration_valid_user": {
+    "data_file": "registration_data.json",
+    "dataset": "valid_user_1",
+    "description": "Valid user registration test case"
+  },
+  "test_registration_another_valid_user": {
+    "data_file": "registration_data.json",
+    "dataset": "valid_user_2",
+    "description": "Another valid user for testing"
+  },
+  "test_registration_invalid_email": {
+    "data_file": "registration_data.json",
+    "dataset": "invalid_email",
+    "description": "Registration with invalid email format"
+  },
+  "test_login_admin": {
+    "data_file": "login_data.json",
+    "dataset": "admin_user",
+    "description": "Admin login credentials"
+  }
+}

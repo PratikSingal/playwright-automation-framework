@@ -1,0 +1,44 @@
+
+# QA Environment Configuration
+
+application:
+  base_url: "https://qa.example.com"
+  name: "Test Application - QA"
+  
+browser:
+  type: "chromium"
+  headless: false
+  timeout: 30000
+  slow_mo: 0
+  viewport:
+    width: 1920
+    height: 1080
+  video: true
+  screenshot_on_failure: true
+  trace_on_failure: true
+
+database:
+  host: "qa-db-server.example.com"
+  port: 1521
+  service_name: "QAORCL"
+  username: "qa_test_user"
+  password: "qa_test_password"
+  encoding: "UTF-8"
+
+api:
+  base_url: "https://api.qa.example.com"
+  timeout: 30
+  verify_ssl: true
+  headers:
+    Content-Type: "application/json"
+
+test_data:
+  data_dir: "testdata"
+  mapping_file: "testdata/test_mapping.json"
+
+reporting:
+  allure_results: "reports/allure-results"
+  allure_report: "reports/allure-report"
+  screenshots: "reports/screenshots"
+  videos: "reports/videos"
+  logs: "logs"
