@@ -337,3 +337,88 @@ class TestRegistrationParametrized:
         with allure.step("Execute registration"):
             registration_page.open(f"{base_url}/register")
             registration_page.fill_registration_form
+
+    
+        @allure.title("Test registration with generic assertions")
+        @pytest.mark.smoke
+        def test_registration_with_generic_assertions(
+            self,
+            registration_page: RegistrationPage,
+            get_test_data,
+            base_url: str
+        ):
+            """Test registration using generic verification methods"""
+            
+            data = get_test_data('test_registration_valid_user')
+            
+            with allure.step("Navigate to registration page"):
+                registration_page.open(f"{base_url}/register")
+            
+            with allure.step("Fill registration form"):
+                registration_page.fill_registration_form(data)
+            
+            # ==================== GENERIC VERIFICATION ====================
+            with allure.step("Verify form contains filled data"):
+                # Verify the form was filled correctly before submission
+                registration_page.verify_registration_form({
+                    'first_name': data['first_name'],
+                    'last_name': data['last_name'],
+                    'email': data['email'],
+                    'terms_conditions': True
+                })
+            
+            with allure.step("Submit registration"):
+                registration_page.submit_form()
+            
+            with allure.step("Verify successful registration"):
+                registration_page.verify_successful_registration(
+                    expected_email=data['email']
+                )
+
+        @allure.title("Test form field visibility")
+        @pytest.mark.smoke
+        def test_form_fields_visible(
+            self,
+            registration_page: RegistrationPage,
+            base_url: str
+        ):
+            """Verify all required fields are visible"""
+            
+            with allure.step("Navigate to registration page"):
+                registration_page.open(f"{base_url}/register")
+            
+            with allure.step("Verify required fields are visible"):
+                required_fields = [
+                    'first_name',
+                    'last_name', 
+                    'email',
+                    'password',
+                    'confirm_password',
+                    'terms_conditions'
+                ]
+                registration_page.verify_required_fields_visible(required_fields)
+
+        @allure.title("Test registration with invalid email")
+        @pytest.mark.regression
+        def test_registration_invalid_email(
+            self,
+            registration_page: RegistrationPage,
+            get_test_data,
+            base_url: str
+        ):
+            """Test registration fails with invalid email"""
+            
+            data = get_test_data('test_registration_invalid_email')
+            
+            with allure.step("Navigate and fill form"):
+                registration_page.open(f"{base_url}/register")
+                registration_page.fill_registration_form(data)
+            
+            with allure.step("Submit registration"):
+                registration_page.submit_form()
+            
+            # ==================== VERIFY FAILURE ====================
+            with allure.step("Verify registration failed"):
+                registration_page.verify_registration_failed(
+                    expected_error="Invalid email format"
+                )

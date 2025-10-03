@@ -1,5 +1,5 @@
 import allure
-from playwright.sync_api import Page
+from playwright.sync_api import Page,expect
 from typing import Dict, Any
 from actions.generic_actions import GenericActions
 from loguru import logger
@@ -176,3 +176,97 @@ class BasePage:
         elif field_type == 'link':
             if bool(value):
                 self.actions.click(locator)
+
+        
+    def verify_form_data(
+        self, 
+        field_mapping: Dict[str, Any], 
+        expected_data: Dict[str, Any],
+        timeout: int = 5000
+    ) -> None:
+        """
+        Generic method to verify form data based on field type and method
+        
+        Args:
+            field_mapping: Same structure as fill_form_data
+            expected_data: Dictionary containing expected values to verify
+            timeout: Timeout for assertions in milliseconds
+        """
+        logger.info("Starting to verify form data")
+        
+        for field_name, expected_value in expected_data.items():
+            if field_name not in field_mapping:
+                logger.warning(f"Field '{field_name}' not found in mapping, skipping verification")
+                continue
+            
+            field_config = field_mapping[field_name]
+            locator = field_config['locator']
+            field_type = field_config['type'].lower()
+            method = field_config.get('method', 'locator')
+            exact = field_config.get('exact', False)
+            
+            # Handle dynamic locators
+            if '{' in locator and isinstance(expected_value, str):
+                locator = locator.format(value=expected_value)
+            
+            try:
+                with allure.step(f"Verifying field: {field_name}"):
+                    # Get the element based on method
+                    element = self._get_element_by_method(method, field_type, locator, exact)
+                    
+                    # Verify based on field type
+                    self._verify_field_value(element, field_type, expected_value, timeout)
+                    
+                    logger.success(f"✓ Field '{field_name}' verified")
+                    
+            except AssertionError as e:
+                logger.error(f"✗ Verification failed for '{field_name}': {str(e)}")
+                allure.attach(
+                    str(e),
+                    name=f"Verification failed: {field_name}",
+                    attachment_type=allure.attachment_type.TEXT
+                )
+                raise
+        
+        logger.success("All form data verified successfully")
+    
+    def _get_element_by_method(self, method: str, field_type: str, locator: str, exact: bool):
+        """Get element based on locator method"""
+        if method == 'get_by_label':
+            return self.page.get_by_label(locator, exact=exact)
+        elif method == 'get_by_placeholder':
+            return self.page.get_by_placeholder(locator)
+        elif method == 'get_by_role':
+            return self.page.get_by_role(field_type, name=locator, exact=exact)
+        elif method == 'get_by_text':
+            return self.page.get_by_text(locator, exact=exact)
+        else:
+            return self.page.locator(locator)
+    
+    def _verify_field_value(self, element, field_type: str, expected_value: Any, timeout: int):
+        """Verify field value based on type"""
+        if field_type in ['textbox', 'textarea']:
+            expect(element).to_have_value(str(expected_value), timeout=timeout)
+        
+        elif field_type == 'checkbox':
+            if bool(expected_value):
+                expect(element).to_be_checked(timeout=timeout)
+            else:
+                expect(element).not_to_be_checked(timeout=timeout)
+        
+        elif field_type == 'radio':
+            expect(element).to_be_checked(timeout=timeout)
+        
+        elif field_type == 'dropdown':
+            # Verify selected option
+            expect(element).to_have_value(str(expected_value), timeout=timeout)
+        
+        elif field_type == 'link':
+            # Verify link is visible
+            if bool(expected_value):
+                expect(element).to_be_visible(timeout=timeout)
+        
+        elif field_type == 'button':
+            # Verify button is enabled
+            if bool(expected_value):
+                expect(element).to_be_enabled(timeout=timeout)

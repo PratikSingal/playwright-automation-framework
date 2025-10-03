@@ -1,5 +1,5 @@
 import allure
-from playwright.sync_api import Page
+from playwright.sync_api import Page , expect
 from pages.base_page import BasePage
 from typing import Dict, Any
 from loguru import logger
@@ -174,3 +174,81 @@ class RegistrationPage(BasePage):
         is_displayed = self.actions.is_visible(self.REGISTRATION_FORM)
         logger.info(f"Registration form displayed: {is_displayed}")
         return is_displayed
+    
+    @allure.step("Verify registration form data")
+    def verify_registration_form(self, expected_data: Dict[str, Any]) -> None:
+        """
+        Verify the registration form contains expected data
+        
+        Args:
+            expected_data: Dictionary containing expected field values
+                Example: {
+                    'first_name': 'John',
+                    'last_name': 'Doe',
+                    'email': 'john@example.com',
+                    'terms_conditions': True
+                }
+        """
+        logger.info("Verifying registration form data")
+        self.verify_form_data(self.FIELD_MAPPING, expected_data)
+        logger.success("Registration form data verified successfully")
+    
+    @allure.step("Verify successful registration")
+    def verify_successful_registration(self, expected_email: str = None) -> None:
+        """Verify registration was successful"""
+        
+        # Check success message
+        success_locator = self.page.locator(self.SUCCESS_MESSAGE)
+        expect(success_locator).to_be_visible(timeout=10000)
+        expect(success_locator).to_contain_text("successful", ignore_case=True)
+        logger.success("✓ Success message verified")
+        
+        # Check URL changed
+        expect(self.page).not_to_have_url("**/register")
+        logger.success("✓ Navigated away from registration page")
+        
+        # Check email if provided
+        if expected_email:
+            email_locator = self.page.locator('.user-email')
+            expect(email_locator).to_contain_text(expected_email)
+            logger.success(f"✓ Email {expected_email} verified")
+    
+    @allure.step("Verify registration failed")
+    def verify_registration_failed(self, expected_error: str = None) -> None:
+        """Verify registration failed with error message"""
+        
+        # Check error message exists
+        error_locator = self.page.locator(self.ERROR_MESSAGE)
+        expect(error_locator).to_be_visible(timeout=10000)
+        logger.warning("Error message displayed")
+        
+        # Check specific error if provided
+        if expected_error:
+            expect(error_locator).to_contain_text(expected_error, ignore_case=True)
+            logger.success(f"✓ Expected error '{expected_error}' verified")
+        
+        # Verify still on registration page
+        expect(self.page).to_have_url("**/register")
+        logger.success("✓ Still on registration page")
+    
+    @allure.step("Verify all required fields are visible")
+    def verify_required_fields_visible(self, required_fields: List[str]) -> None:
+        """Verify all required fields are visible on the form"""
+        for field_name in required_fields:
+            if field_name not in self.FIELD_MAPPING:
+                logger.warning(f"Field '{field_name}' not in mapping")
+                continue
+            
+            field_config = self.FIELD_MAPPING[field_name]
+            locator = field_config['locator']
+            method = field_config.get('method', 'locator')
+            
+            element = self._get_element_by_method(
+                method, 
+                field_config['type'], 
+                locator, 
+                field_config.get('exact', False)
+            )
+            
+            expect(element).to_be_visible()
+            logger.success(f"✓ Field '{field_name}' is visible")
