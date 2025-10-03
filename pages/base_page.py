@@ -94,6 +94,11 @@ class BasePage:
                     elif field_type == 'file':
                         self.actions.upload_file(locator, str(field_value))
                     
+                    elif field_type == 'link':
+                        # Click link if value is True
+                        if bool(field_value):
+                            self.actions.click(locator)
+                    
                     else:
                         logger.warning(f"Unknown field type '{field_type}' for field '{field_name}'")
                         
