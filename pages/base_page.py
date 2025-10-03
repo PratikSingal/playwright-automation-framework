@@ -34,24 +34,34 @@ class BasePage:
         logger.info(f"Current URL: {url}")
         return url
     
+    @allure.step("Wait for network idle")
+    def wait_for_network_idle(self, timeout: int = None) -> None:
+        """Wait for network to be idle (useful for SPAs)"""
+        self.page.wait_for_load_state("networkidle", timeout=timeout or 30000)
+        logger.success("Network idle")
+    
     def fill_form_data(self, field_mapping: Dict[str, str], data: Dict[str, Any]) -> None:
         """
-        Generic method to fill form data based on field type
+        Generic method to fill form data based on field type and method
         
         Args:
-            field_mapping: Dictionary mapping field names to locators and types
+            field_mapping: Dictionary mapping field names to locators, types, and methods
                 Example: {
-                    'username': {'locator': '#username', 'type': 'textbox'},
-                    'bio': {'locator': '#bio', 'type': 'textarea'},
-                    'gender': {'locator': '#male', 'type': 'radio'},
-                    'terms': {'locator': '#terms', 'type': 'checkbox'}
+                    'username': {
+                        'locator': 'Username',
+                        'type': 'textbox',
+                        'method': 'get_by_label'
+                    },
+                    'email': {
+                        'locator': '#email',
+                        'type': 'textbox',
+                        'method': 'locator'
+                    }
                 }
             data: Dictionary containing the actual data to fill
                 Example: {
                     'username': 'john_doe',
-                    'bio': 'This is my bio',
-                    'gender': 'male',
-                    'terms': True
+                    'email': 'john@example.com'
                 }
         """
         logger.info("Starting to fill form data")
@@ -64,43 +74,30 @@ class BasePage:
             field_config = field_mapping[field_name]
             locator = field_config['locator']
             field_type = field_config['type'].lower()
+            method = field_config.get('method', 'locator')  # Default to CSS locator
+            exact = field_config.get('exact', False)  # For exact text matching
+            
+            # Handle dynamic locators (e.g., gender radio with {value})
+            if '{' in locator and isinstance(field_value, str):
+                locator = locator.format(value=field_value)
             
             try:
                 with allure.step(f"Filling field: {field_name}"):
-                    if field_type == 'textbox':
-                        self.actions.fill_textbox(locator, str(field_value))
+                    # Handle different locator methods
+                    if method == 'get_by_label':
+                        self._fill_by_label(field_type, locator, field_value, exact)
                     
-                    elif field_type == 'textarea':
-                        self.actions.fill_textarea(locator, str(field_value))
+                    elif method == 'get_by_placeholder':
+                        self._fill_by_placeholder(field_type, locator, field_value)
                     
-                    elif field_type == 'radio':
-                        self.actions.select_radio(locator)
+                    elif method == 'get_by_role':
+                        self._fill_by_role(field_type, locator, field_value, exact)
                     
-                    elif field_type == 'checkbox':
-                        self.actions.select_checkbox(locator, check=bool(field_value))
+                    elif method == 'get_by_text':
+                        self._fill_by_text(field_type, locator, field_value, exact)
                     
-                    elif field_type == 'dropdown':
-                        if 'select_by' in field_config:
-                            select_by = field_config['select_by']
-                            if select_by == 'value':
-                                self.actions.select_dropdown(locator, value=str(field_value))
-                            elif select_by == 'label':
-                                self.actions.select_dropdown(locator, label=str(field_value))
-                            elif select_by == 'index':
-                                self.actions.select_dropdown(locator, index=int(field_value))
-                        else:
-                            self.actions.select_dropdown(locator, value=str(field_value))
-                    
-                    elif field_type == 'file':
-                        self.actions.upload_file(locator, str(field_value))
-                    
-                    elif field_type == 'link':
-                        # Click link if value is True
-                        if bool(field_value):
-                            self.actions.click(locator)
-                    
-                    else:
-                        logger.warning(f"Unknown field type '{field_type}' for field '{field_name}'")
+                    else:  # Default to CSS/XPath locator
+                        self._fill_by_locator(field_type, locator, field_value, field_config)
                         
             except Exception as e:
                 logger.error(f"Error filling field '{field_name}': {str(e)}")
@@ -112,3 +109,70 @@ class BasePage:
                 raise
         
         logger.success("Successfully filled all form data")
+    
+    def _fill_by_label(self, field_type: str, locator: str, value: Any, exact: bool) -> None:
+        """Fill field using get_by_label"""
+        if field_type in ['textbox', 'textarea']:
+            self.actions.fill_by_label(locator, str(value), exact=exact)
+        elif field_type == 'checkbox':
+            if bool(value):
+                self.actions.check_by_label(locator, exact=exact)
+            else:
+                self.actions.uncheck_by_label(locator, exact=exact)
+        elif field_type == 'radio':
+            self.actions.check_by_label(locator, exact=exact)
+    
+    def _fill_by_placeholder(self, field_type: str, locator: str, value: Any) -> None:
+        """Fill field using get_by_placeholder"""
+        if field_type in ['textbox', 'textarea']:
+            self.actions.fill_by_placeholder(locator, str(value))
+    
+    def _fill_by_role(self, field_type: str, locator: str, value: Any, exact: bool) -> None:
+        """Fill field using get_by_role"""
+        if field_type == 'button':
+            if bool(value):
+                self.actions.click_by_role('button', name=locator, exact=exact)
+        elif field_type == 'link':
+            if bool(value):
+                self.actions.click_by_role('link', name=locator, exact=exact)
+        elif field_type == 'textbox':
+            element = self.page.get_by_role('textbox', name=locator, exact=exact)
+            element.fill(str(value))
+    
+    def _fill_by_text(self, field_type: str, locator: str, value: Any, exact: bool) -> None:
+        """Fill field using get_by_text"""
+        if bool(value):
+            self.actions.click_by_text(locator, exact=exact)
+    
+    def _fill_by_locator(self, field_type: str, locator: str, value: Any, field_config: Dict) -> None:
+        """Fill field using traditional CSS/XPath locator"""
+        if field_type == 'textbox':
+            self.actions.fill_textbox(locator, str(value))
+        
+        elif field_type == 'textarea':
+            self.actions.fill_textarea(locator, str(value))
+        
+        elif field_type == 'radio':
+            self.actions.select_radio(locator)
+        
+        elif field_type == 'checkbox':
+            self.actions.select_checkbox(locator, check=bool(value))
+        
+        elif field_type == 'dropdown':
+            if 'select_by' in field_config:
+                select_by = field_config['select_by']
+                if select_by == 'value':
+                    self.actions.select_dropdown(locator, value=str(value))
+                elif select_by == 'label':
+                    self.actions.select_dropdown(locator, label=str(value))
+                elif select_by == 'index':
+                    self.actions.select_dropdown(locator, index=int(value))
+            else:
+                self.actions.select_dropdown(locator, value=str(value))
+        
+        elif field_type == 'file':
+            self.actions.upload_file(locator, str(value))
+        
+        elif field_type == 'link':
+            if bool(value):
+                self.actions.click(locator)

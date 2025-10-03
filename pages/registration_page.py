@@ -8,66 +8,102 @@ from loguru import logger
 class RegistrationPage(BasePage):
     """Page Object Model for Registration Form"""
     
-    # Define field mapping with locators and types
-    # Add new fields here when the form changes - no need to modify methods
+    # Define field mapping with locators, types, and methods
     FIELD_MAPPING = {
+        # Using get_by_label (recommended for form inputs with labels)
         'first_name': {
-            'locator': '#firstName',
-            'type': 'textbox'
+            'locator': 'First Name',
+            'type': 'textbox',
+            'method': 'get_by_label'
         },
         'last_name': {
-            'locator': '#lastName',
-            'type': 'textbox'
+            'locator': 'Last Name',
+            'type': 'textbox',
+            'method': 'get_by_label'
         },
+        
+        # Using get_by_placeholder (when no label exists)
         'email': {
-            'locator': '#email',
-            'type': 'textbox'
+            'locator': 'Enter your email',
+            'type': 'textbox',
+            'method': 'get_by_placeholder'
         },
+        
+        # Using traditional CSS locator
         'password': {
             'locator': '#password',
-            'type': 'textbox'
+            'type': 'textbox',
+            'method': 'locator'
         },
         'confirm_password': {
             'locator': '#confirmPassword',
-            'type': 'textbox'
+            'type': 'textbox',
+            'method': 'locator'
         },
+        
+        # Using get_by_label for phone
         'phone': {
-            'locator': '#phone',
-            'type': 'textbox'
+            'locator': 'Phone Number',
+            'type': 'textbox',
+            'method': 'get_by_label'
         },
+        
         'date_of_birth': {
             'locator': '#dob',
-            'type': 'textbox'
+            'type': 'textbox',
+            'method': 'locator'
         },
+        
         'bio': {
             'locator': '#bio',
-            'type': 'textarea'
+            'type': 'textarea',
+            'method': 'locator'
         },
+        
+        # Dynamic radio button with CSS locator
         'gender': {
-            'locator': 'input[name="gender"][value="{value}"]',  # Dynamic locator
-            'type': 'radio'
+            'locator': 'input[name="gender"][value="{value}"]',
+            'type': 'radio',
+            'method': 'locator'
         },
+        
+        # Dropdown with CSS
         'country': {
             'locator': '#country',
             'type': 'dropdown',
+            'method': 'locator',
             'select_by': 'value'
         },
+        
+        # Checkbox using get_by_label
         'terms_conditions': {
-            'locator': '#terms',
-            'type': 'checkbox'
+            'locator': 'I agree to terms and conditions',
+            'type': 'checkbox',
+            'method': 'get_by_label'
         },
+        
         'newsletter': {
             'locator': '#newsletter',
-            'type': 'checkbox'
+            'type': 'checkbox',
+            'method': 'locator'
         },
+        
         'profile_picture': {
             'locator': '#profilePicture',
-            'type': 'file'
+            'type': 'file',
+            'method': 'locator'
+        },
+        
+        # Link using get_by_role
+        'privacy_policy': {
+            'locator': 'Privacy Policy',
+            'type': 'link',
+            'method': 'get_by_role'
         }
     }
     
     # Page-specific locators
-    SUBMIT_BUTTON = '#submitBtn'
+    SUBMIT_BUTTON = 'Submit'  # Using accessible name
     SUCCESS_MESSAGE = '.success-message'
     ERROR_MESSAGE = '.error-message'
     REGISTRATION_FORM = '#registrationForm'
@@ -100,15 +136,9 @@ class RegistrationPage(BasePage):
         """
         logger.info("Filling registration form with data")
         
-        # Handle special case for radio buttons with dynamic values
-        modified_mapping = self.FIELD_MAPPING.copy()
-        if 'gender' in data:
-            gender_value = data['gender']
-            modified_mapping['gender']['locator'] = \
-                modified_mapping['gender']['locator'].format(value=gender_value)
-        
         # Use the generic fill_form_data method from BasePage
-        self.fill_form_data(modified_mapping, data)
+        # No need for special handling - dynamic locators handled automatically
+        self.fill_form_data(self.FIELD_MAPPING, data)
         
         logger.success("Registration form filled successfully")
     
@@ -116,7 +146,8 @@ class RegistrationPage(BasePage):
     def submit_form(self) -> None:
         """Submit the registration form"""
         logger.info("Submitting registration form")
-        self.actions.click(self.SUBMIT_BUTTON)
+        # Using accessible button name
+        self.actions.click_button(self.SUBMIT_BUTTON)
         logger.success("Registration form submitted")
     
     @allure.step("Get success message")
@@ -143,25 +174,3 @@ class RegistrationPage(BasePage):
         is_displayed = self.actions.is_visible(self.REGISTRATION_FORM)
         logger.info(f"Registration form displayed: {is_displayed}")
         return is_displayed
-    
-    @allure.step("Clear field: {field_name}")
-    def clear_field(self, field_name: str) -> None:
-        """Clear a specific field"""
-        if field_name in self.FIELD_MAPPING:
-            locator = self.FIELD_MAPPING[field_name]['locator']
-            self.page.locator(locator).clear()
-            logger.success(f"Cleared field: {field_name}")
-        else:
-            logger.error(f"Field '{field_name}' not found in mapping")
-            raise ValueError(f"Field '{field_name}' not found")
-    
-    @allure.step("Get field value: {field_name}")
-    def get_field_value(self, field_name: str) -> str:
-        """Get the value of a specific field"""
-        if field_name in self.FIELD_MAPPING:
-            locator = self.FIELD_MAPPING[field_name]['locator']
-            value = self.page.locator(locator).input_value()
-            logger.info(f"Field '{field_name}' value: {value}")
-            return value
-        else:
-            logger.error(f"Field '{field_name}' not found in

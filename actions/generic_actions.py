@@ -11,6 +11,8 @@ class GenericActions:
         self.page = page
         self.timeout = 30000
     
+    # ==================== CSS Locator Methods ====================
+    
     @allure.step("Fill textbox: {locator} with value: {value}")
     def fill_textbox(self, locator: str, value: str, clear_first: bool = True) -> None:
         """Fill a textbox with the given value"""
@@ -80,7 +82,7 @@ class GenericActions:
             logger.error(f"Failed to modify checkbox '{locator}': {str(e)}")
             raise
     
-    @allure.step("Select dropdown option: {locator} with value: {value}")
+    @allure.step("Select dropdown option: {locator}")
     def select_dropdown(self, locator: str, value: str = None, label: str = None, index: int = None) -> None:
         """Select an option from a dropdown by value, label, or index"""
         try:
@@ -114,6 +116,136 @@ class GenericActions:
         except Exception as e:
             logger.error(f"Failed to click element '{locator}': {str(e)}")
             raise
+    
+    # ==================== Accessibility-Based Methods ====================
+    
+    @allure.step("Fill by label: {label}")
+    def fill_by_label(self, label: str, value: str, exact: bool = False) -> None:
+        """Fill input using associated label"""
+        try:
+            logger.info(f"Filling input with label '{label}'")
+            self.page.get_by_label(label, exact=exact).fill(value)
+            logger.success(f"Filled input with label '{label}'")
+        except Exception as e:
+            logger.error(f"Failed to fill input with label '{label}': {str(e)}")
+            raise
+    
+    @allure.step("Fill by placeholder: {placeholder}")
+    def fill_by_placeholder(self, placeholder: str, value: str) -> None:
+        """Fill input by placeholder text"""
+        try:
+            logger.info(f"Filling input with placeholder '{placeholder}'")
+            self.page.get_by_placeholder(placeholder).fill(value)
+            logger.success(f"Filled input with placeholder '{placeholder}'")
+        except Exception as e:
+            logger.error(f"Failed to fill by placeholder '{placeholder}': {str(e)}")
+            raise
+    
+    @allure.step("Click by role: {role}")
+    def click_by_role(self, role: str, name: str = None, exact: bool = False) -> None:
+        """Click element using accessibility role"""
+        try:
+            logger.info(f"Clicking {role}" + (f" with name '{name}'" if name else ""))
+            if name:
+                self.page.get_by_role(role, name=name, exact=exact).click()
+            else:
+                self.page.get_by_role(role).click()
+            logger.success(f"Clicked {role}")
+        except Exception as e:
+            logger.error(f"Failed to click {role}: {str(e)}")
+            raise
+    
+    @allure.step("Click button: {name}")
+    def click_button(self, name: str, exact: bool = False) -> None:
+        """Click button by accessible name"""
+        try:
+            logger.info(f"Clicking button '{name}'")
+            self.page.get_by_role("button", name=name, exact=exact).click()
+            logger.success(f"Clicked button '{name}'")
+        except Exception as e:
+            logger.error(f"Failed to click button '{name}': {str(e)}")
+            raise
+    
+    @allure.step("Click link: {name}")
+    def click_link(self, name: str, exact: bool = False) -> None:
+        """Click link by accessible name"""
+        try:
+            logger.info(f"Clicking link '{name}'")
+            self.page.get_by_role("link", name=name, exact=exact).click()
+            logger.success(f"Clicked link '{name}'")
+        except Exception as e:
+            logger.error(f"Failed to click link '{name}': {str(e)}")
+            raise
+    
+    @allure.step("Check by label: {label}")
+    def check_by_label(self, label: str, exact: bool = False) -> None:
+        """Check checkbox/radio by label"""
+        try:
+            logger.info(f"Checking '{label}'")
+            self.page.get_by_label(label, exact=exact).check()
+            logger.success(f"Checked '{label}'")
+        except Exception as e:
+            logger.error(f"Failed to check '{label}': {str(e)}")
+            raise
+    
+    @allure.step("Uncheck by label: {label}")
+    def uncheck_by_label(self, label: str, exact: bool = False) -> None:
+        """Uncheck checkbox by label"""
+        try:
+            logger.info(f"Unchecking '{label}'")
+            self.page.get_by_label(label, exact=exact).uncheck()
+            logger.success(f"Unchecked '{label}'")
+        except Exception as e:
+            logger.error(f"Failed to uncheck '{label}': {str(e)}")
+            raise
+    
+    @allure.step("Click by text: {text}")
+    def click_by_text(self, text: str, exact: bool = False) -> None:
+        """Click element by visible text"""
+        try:
+            logger.info(f"Clicking element with text '{text}'")
+            self.page.get_by_text(text, exact=exact).click()
+            logger.success(f"Clicked element with text '{text}'")
+        except Exception as e:
+            logger.error(f"Failed to click by text '{text}': {str(e)}")
+            raise
+    
+    # ==================== Assertion Methods ====================
+    
+    @allure.step("Assert text equals: {expected_text}")
+    def assert_text_equals(self, locator: str, expected_text: str, timeout: int = None) -> None:
+        """Assert element text matches expected with auto-retry"""
+        try:
+            element = self.page.locator(locator)
+            expect(element).to_have_text(expected_text, timeout=timeout or self.timeout)
+            logger.success(f"Text assertion passed for '{locator}'")
+        except AssertionError as e:
+            logger.error(f"Text assertion failed for '{locator}': {str(e)}")
+            raise
+    
+    @allure.step("Assert visible: {locator}")
+    def assert_visible(self, locator: str, timeout: int = None) -> None:
+        """Assert element is visible with auto-retry"""
+        try:
+            element = self.page.locator(locator)
+            expect(element).to_be_visible(timeout=timeout or self.timeout)
+            logger.success(f"Element '{locator}' is visible")
+        except AssertionError as e:
+            logger.error(f"Visibility assertion failed for '{locator}': {str(e)}")
+            raise
+    
+    @allure.step("Assert enabled: {locator}")
+    def assert_enabled(self, locator: str) -> None:
+        """Assert element is enabled"""
+        try:
+            element = self.page.locator(locator)
+            expect(element).to_be_enabled()
+            logger.success(f"Element '{locator}' is enabled")
+        except AssertionError as e:
+            logger.error(f"Enabled assertion failed for '{locator}': {str(e)}")
+            raise
+    
+    # ==================== Existing Methods ====================
     
     @allure.step("Double click element: {locator}")
     def double_click(self, locator: str) -> None:
