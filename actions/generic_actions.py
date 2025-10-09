@@ -14,7 +14,7 @@ class GenericActions:
     # ==================== CSS Locator Methods ====================
     
     @allure.step("Fill textbox: {locator} with value: {value}")
-    def fill_textbox(self, locator: str, value: str, clear_first: bool = True) -> None:
+    def fill_textbox(self, locator: str, value: str, clear_first: bool=True) -> None:
         """Fill a textbox with the given value"""
         try:
             logger.info(f"Filling textbox '{locator}' with value '{value}'")
@@ -31,7 +31,7 @@ class GenericActions:
             raise
     
     @allure.step("Fill textarea: {locator} with value: {value}")
-    def fill_textarea(self, locator: str, value: str, clear_first: bool = True) -> None:
+    def fill_textarea(self, locator: str, value: str, clear_first: bool=True) -> None:
         """Fill a textarea with the given value"""
         try:
             logger.info(f"Filling textarea '{locator}' with value '{value}'")
@@ -64,7 +64,7 @@ class GenericActions:
             raise
     
     @allure.step("Select checkbox: {locator}")
-    def select_checkbox(self, locator: str, check: bool = True) -> None:
+    def select_checkbox(self, locator: str, check: bool=True) -> None:
         """Check or uncheck a checkbox"""
         try:
             action = "Checking" if check else "Unchecking"
@@ -82,7 +82,6 @@ class GenericActions:
             logger.error(f"Failed to modify checkbox '{locator}': {str(e)}")
             raise
     
-    
     @allure.step("Click element: {locator}")
     def click(self, locator: str) -> None:
         """Click an element"""
@@ -99,7 +98,7 @@ class GenericActions:
     # ==================== Accessibility-Based Methods ====================
     
     @allure.step("Fill by label: {label}")
-    def fill_by_label(self, label: str, value: str, exact: bool = False) -> None:
+    def fill_by_label(self, label: str, value: str, exact: bool=False) -> None:
         """Fill input using associated label"""
         try:
             logger.info(f"Filling input with label '{label}'")
@@ -121,7 +120,7 @@ class GenericActions:
             raise
     
     @allure.step("Click by role: {role}")
-    def click_by_role(self, role: str, name: str = None, exact: bool = False) -> None:
+    def click_by_role(self, role: str, name: str=None, exact: bool=False) -> None:
         """Click element using accessibility role"""
         try:
             logger.info(f"Clicking {role}" + (f" with name '{name}'" if name else ""))
@@ -135,7 +134,7 @@ class GenericActions:
             raise
     
     @allure.step("Click button: {name}")
-    def click_button(self, name: str, exact: bool = False) -> None:
+    def click_button(self, name: str, exact: bool=False) -> None:
         """Click button by accessible name"""
         try:
             logger.info(f"Clicking button '{name}'")
@@ -146,7 +145,7 @@ class GenericActions:
             raise
     
     @allure.step("Click link: {name}")
-    def click_link(self, name: str, exact: bool = False) -> None:
+    def click_link(self, name: str, exact: bool=False) -> None:
         """Click link by accessible name"""
         try:
             logger.info(f"Clicking link '{name}'")
@@ -157,7 +156,7 @@ class GenericActions:
             raise
     
     @allure.step("Check by label: {label}")
-    def check_by_label(self, label: str, exact: bool = False) -> None:
+    def check_by_label(self, label: str, exact: bool=False) -> None:
         """Check checkbox/radio by label"""
         try:
             logger.info(f"Checking '{label}'")
@@ -168,7 +167,7 @@ class GenericActions:
             raise
     
     @allure.step("Uncheck by label: {label}")
-    def uncheck_by_label(self, label: str, exact: bool = False) -> None:
+    def uncheck_by_label(self, label: str, exact: bool=False) -> None:
         """Uncheck checkbox by label"""
         try:
             logger.info(f"Unchecking '{label}'")
@@ -179,7 +178,7 @@ class GenericActions:
             raise
     
     @allure.step("Click by text: {text}")
-    def click_by_text(self, text: str, exact: bool = False) -> None:
+    def click_by_text(self, text: str, exact: bool=False) -> None:
         """Click element by visible text"""
         try:
             logger.info(f"Clicking element with text '{text}'")
@@ -192,7 +191,7 @@ class GenericActions:
     # ==================== Assertion Methods ====================
     
     @allure.step("Assert text equals: {expected_text}")
-    def assert_text_equals(self, locator: str, expected_text: str, timeout: int = None) -> None:
+    def assert_text_equals(self, locator: str, expected_text: str, timeout: int=None) -> None:
         """Assert element text matches expected with auto-retry"""
         try:
             element = self.page.locator(locator)
@@ -203,7 +202,7 @@ class GenericActions:
             raise
     
     @allure.step("Assert visible: {locator}")
-    def assert_visible(self, locator: str, timeout: int = None) -> None:
+    def assert_visible(self, locator: str, timeout: int=None) -> None:
         """Assert element is visible with auto-retry"""
         try:
             element = self.page.locator(locator)
@@ -267,7 +266,7 @@ class GenericActions:
             return False
     
     @allure.step("Wait for element: {locator}")
-    def wait_for_element(self, locator: str, state: str = "visible") -> None:
+    def wait_for_element(self, locator: str, state: str="visible") -> None:
         """Wait for element to reach a specific state"""
         try:
             logger.info(f"Waiting for element '{locator}' to be {state}")
@@ -291,7 +290,7 @@ class GenericActions:
             raise
     
     @allure.step("Press key: {key}")
-    def press_key(self, key: str, locator: str = None) -> None:
+    def press_key(self, key: str, locator: str=None) -> None:
         """Press a keyboard key"""
         try:
             logger.info(f"Pressing key '{key}'")
@@ -330,18 +329,17 @@ class GenericActions:
             logger.error(f"Failed to scroll to element '{locator}': {str(e)}")
             raise
 
-
     # ==========================================
     # CUSTOM DROPDOWN METHODS (NON-SELECT TAG)
     # ==========================================
     
     @allure.step("Select custom dropdown by label in iframe: {label} -> {option_text}")
     def select_custom_dropdown_by_label_in_iframe(
-        self, 
+        self,
         iframe_locator: str,
         label: str,
         option_text: str,
-        exact: bool = True
+        exact: bool=True
     ) -> None:
         """
         Select from custom dropdown (non-select tag) using label inside iframe
@@ -372,10 +370,10 @@ class GenericActions:
     
     @allure.step("Select custom dropdown by label: {label} -> {option_text}")
     def select_custom_dropdown_by_label(
-        self, 
+        self,
         label: str,
         option_text: str,
-        exact: bool = True
+        exact: bool=True
     ) -> None:
         """
         Select from custom dropdown (non-select tag) using label (no iframe)
@@ -404,11 +402,11 @@ class GenericActions:
     
     @allure.step("Select custom dropdown by placeholder in iframe: {placeholder} -> {option_text}")
     def select_custom_dropdown_by_placeholder_in_iframe(
-        self, 
+        self,
         iframe_locator: str,
         placeholder: str,
         option_text: str,
-        exact: bool = True
+        exact: bool=True
     ) -> None:
         """
         Select from custom dropdown using placeholder inside iframe
@@ -442,7 +440,7 @@ class GenericActions:
     # ==========================================
     
     @allure.step("Select dropdown option: {locator}")
-    def select_dropdown(self, locator: str, value: str = None, label: str = None, index: int = None) -> None:
+    def select_dropdown(self, locator: str, value: str=None, label: str=None, index: int=None) -> None:
         """
         Select an option from standard <select> dropdown by value, label, or index
         
@@ -478,9 +476,9 @@ class GenericActions:
         self,
         iframe_locator: str,
         label_text: str,
-        value: str = None,
-        label: str = None,
-        index: int = None
+        value: str=None,
+        label: str=None,
+        index: int=None
     ) -> None:
         """
         Select standard <select> dropdown using its label inside iframe
@@ -507,4 +505,15 @@ class GenericActions:
             logger.success(f"Successfully selected from dropdown")
         except Exception as e:
             logger.error(f"Failed to select dropdown by label in iframe: {str(e)}")
+            raise
+
+    @allure.step("Click by text with index: {text} at position {index}")
+    def click_by_text_at_index(self, text: str, index: int=0, exact: bool=False) -> None:
+        """Click element by visible text when multiple matches exist"""
+        try:
+            logger.info(f"Clicking element with text '{text}' at index {index}")
+            self.page.get_by_text(text, exact=exact).nth(index).click()
+            logger.success(f"Clicked element with text '{text}' at index {index}")
+        except Exception as e:
+            logger.error(f"Failed to click by text '{text}' at index {index}: {str(e)}")
             raise
