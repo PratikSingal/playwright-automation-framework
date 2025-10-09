@@ -1,26 +1,26 @@
 import pytest
 from playwright.sync_api import Page
-#from pages.registration_page import RegistrationPage
+from pages.registration_page import RegistrationPage
 # Import other pages as you create them
 # from pages.login_page import LoginPage
 # from pages.dashboard_page import DashboardPage
 from loguru import logger
 
 
-# @pytest.fixture(scope="function")
-# def registration_page(page: Page) -> RegistrationPage:
-#     """
-#     Create Registration Page Object
+@pytest.fixture(scope="function")
+def registration_page(page: Page) -> RegistrationPage:
+    """
+    Create Registration Page Object
     
-#     Usage in test:
-#         def test_registration(registration_page):
-#             registration_page.open("https://example.com/register")
-#             registration_page.fill_registration_form(data)
-#     """
-#     logger.info("Creating Registration Page fixture")
-#     reg_page = RegistrationPage(page)
-#     logger.success("Registration Page fixture created")
-#     return reg_page
+    Usage in test:
+        def test_registration(registration_page):
+            registration_page.open("https://example.com/register")
+            registration_page.fill_registration_form(data)
+    """
+    logger.info("Creating Registration Page fixture")
+    reg_page = RegistrationPage(page)
+    logger.success("Registration Page fixture created")
+    return reg_page
 
 
 # Add more page fixtures here as you create more pages

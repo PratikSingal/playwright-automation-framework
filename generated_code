@@ -1,55 +1,97 @@
-import allure
-from playwright.sync_api import Page
-from pages.base_page import BasePage
-from loguru import logger
-
-
-class NewAccountPage(BasePage):
-    """Page Object Model for New Account Page"""
+@allure.step("Select SumoSelect option: {group_label} -> {option_text}")
+def select_sumo_dropdown_by_group(
+    self, 
+    dropdown_class: str, 
+    group_label: str, 
+    option_text: str
+) -> None:
+    """
+    Select from SumoSelect dropdown by specifying both optgroup and option
     
-    NEW_ACCOUNT_LINK = "New Account"
-    
-    def __init__(self, page: Page):
-        super().__init__(page)
-        logger.info("Initialized New Account Page")
-    
-    @allure.step("Click on New Account link")
-    def click_new_account_link(self) -> None:
-        """Click on the 'New Account' link"""
-        logger.info("Clicking on 'New Account' link")
-        self.page.get_by_text(self.NEW_ACCOUNT_LINK, exact=True).click()
-        logger.success("Successfully clicked 'New Account' link")
-
-
-###########
-# 
-
-import pytest
-import allure
-from pages.new_account_page import NewAccountPage
-from playwright.sync_api import Page
-from loguru import logger
-
-
-@allure.feature("New Account")
-@pytest.mark.gui
-class TestNewAccount:
-    
-    @allure.title("Test click New Account link")
-    @pytest.mark.smoke
-    def test_click_new_account_link(
-        self,
-        page: Page,
-        base_url: str
-    ):
-        """Test clicking New Account link"""
+    Args:
+        dropdown_class: Class of the SumoSelect div (e.g., 'sumo_accountType')
+        group_label: The optgroup label (e.g., 'PB Accounts')
+        option_text: Text of the option to select (e.g., 'New Account')
+    """
+    try:
+        logger.info(f"Selecting '{option_text}' from group '{group_label}' in SumoSelect '{dropdown_class}'")
         
-        new_account_page = NewAccountPage(page)
+        # Click to open dropdown
+        self.page.locator(f'div.SumoSelect.{dropdown_class} p.CaptionCont.SelectBox').click()
         
-        # Navigate to URL
-        new_account_page.navigate_to(base_url)
-        logger.info(f"Opened URL: {base_url}")
+        # Wait for options
+        self.page.wait_for_timeout(500)
         
-        # Click New Account link
-        new_account_page.click_new_account_link()
-        logger.success("Clicked New Account link")     
+        # Click the specific option under the specific group using XPath
+        xpath = f'//div[contains(@class, "SumoSelect") and contains(@class, "{dropdown_class}")]//li[@class="group"]//label[text()="{group_label}"]/following-sibling::ul//li[@class="opt"]//label[text()="{option_text}"]'
+        self.page.locator(xpath).click()
+        
+        logger.success(f"Successfully selected '{option_text}' from '{group_label}'")
+    except Exception as e:
+        logger.error(f"Failed to select SumoSelect option: {str(e)}")
+        raise
+    ###
+    def test_select_new_account_from_pb_accounts(page):
+    generic_actions = GenericActions(page)
+    
+    # Select "New Account" specifically from "PB Accounts" group
+    generic_actions.select_sumo_dropdown_by_group(
+        dropdown_class='sumo_accountType',
+        group_label='PB Accounts',
+        option_text='New Account'
+    )
+    
+    # Verify selection
+    selected_text = generic_actions.get_text('p.CaptionCont.SelectBox label')
+    assert "New Account" in selected_text
+
+def test_select_new_account_from_etd_execution(page):
+    generic_actions = GenericActions(page)
+    
+    # Select "New Account" from different group
+    generic_actions.select_sumo_dropdown_by_group(
+        dropdown_class='sumo_accountType',
+        group_label='ETD Execution Accounts',
+        option_text='New Account'
+    )
+
+@@@
+@allure.step("Select SumoSelect option: {group_label} -> {option_text}")
+def select_sumo_dropdown_by_group_css(
+    self, 
+    dropdown_class: str, 
+    group_label: str, 
+    option_text: str
+) -> None:
+    """Select from SumoSelect using CSS selectors with filtering"""
+    try:
+        logger.info(f"Selecting '{option_text}' from group '{group_label}'")
+        
+        # Click to open dropdown
+        self.page.locator(f'div.SumoSelect.{dropdown_class} p.CaptionCont.SelectBox').click()
+        
+        # Wait for options
+        self.page.wait_for_timeout(500)
+        
+        # Find all group li elements
+        groups = self.page.locator(f'div.SumoSelect.{dropdown_class} li.group').all()
+        
+        # Find the correct group and click the option
+        for group in groups:
+            group_label_elem = group.locator('> label').first
+            if group_label_elem.inner_text() == group_label:
+                # Found the right group, now click the option
+                group.locator(f'ul li.opt label:has-text("{option_text}")').click()
+                break
+        
+        logger.success(f"Successfully selected '{option_text}' from '{group_label}'")
+    except Exception as e:
+        logger.error(f"Failed to select SumoSelect option: {str(e)}")
+        raise
+
+###
+# Method 1: Using XPath (Recommended - more precise)
+generic_actions.select_sumo_dropdown_by_group('sumo_accountType', 'PB Accounts', 'New Account')
+
+# Method 2: Using CSS with Python filtering
+generic_actions.select_sumo_dropdown_by_group_css('sumo_accountType', 'PB Accounts', 'New Account')
