@@ -8,7 +8,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 # Import and setup logger from utils
-from utils.logger import setup_logger, logger  # ✅ Import both
+from utils.logger import setup_logger, logger
 
 # Setup logger once at the start
 setup_logger(log_dir=str(project_root / "logs"))
@@ -27,13 +27,13 @@ def pytest_configure(config):
     logger.info("=" * 80)
     logger.info("TEST EXECUTION STARTED")
     logger.info("=" * 80)
-    
+   
     # Create reports directories
     reports_dir = project_root / "reports"
     (reports_dir / "allure-results").mkdir(parents=True, exist_ok=True)
     (reports_dir / "screenshots").mkdir(parents=True, exist_ok=True)
     (reports_dir / "videos").mkdir(parents=True, exist_ok=True)
-    
+   
     # Set environment variables for Allure
     os.environ['ALLURE_RESULTS_DIR'] = str(reports_dir / "allure-results")
 
@@ -61,7 +61,7 @@ def pytest_runtest_makereport(item, call):
     """
     outcome = yield
     rep = outcome.get_result()
-    
+   
     if rep.when == "call":
         if rep.failed:
             logger.error(f"Test FAILED: {item.nodeid}")
@@ -69,7 +69,7 @@ def pytest_runtest_makereport(item, call):
             logger.success(f"Test PASSED: {item.nodeid}")
         elif rep.skipped:
             logger.warning(f"Test SKIPPED: {item.nodeid}")
-    
+   
     setattr(item, f"rep_{rep.when}", rep)
 
 
@@ -79,19 +79,7 @@ def pytest_addoption(parser):
         "--env",
         action="store",
         default="dev",
-        help="Environment to run tests against: dev, qa, staging, prod"
-    )
-    parser.addoption(
-        "--browser",
-        action="store",
-        default="chromium",
-        help="Browser to run tests: chromium, firefox, webkit"
-    )
-    parser.addoption(
-        "--headless",
-        action="store_true",
-        default=False,
-        help="Run tests in headless mode"
+        help="Environment to run tests against: dev, qa, uat, staging, prod"
     )
 
 
@@ -102,28 +90,16 @@ def env(request):
 
 
 @pytest.fixture(scope="session")
-def browser_name(request):
-    """Get browser name from command line"""
-    return request.config.getoption("--browser")
-
-
-@pytest.fixture(scope="session")
-def headless_mode(request):
-    """Get headless mode from command line"""
-    return request.config.getoption("--headless")
+def config_manager(env):
+    """Create ConfigManager for the session with correct environment"""
+    from config.config_manager import ConfigManager
+    return ConfigManager(env=env)
 
 
 @pytest.fixture(scope="session")
 def test_data_manager(env):
     """Create TestDataManager with current environment"""
     from utils.test_data_manager import TestDataManager
-    from pathlib import Path
-    
+   
     data_dir = Path(__file__).parent / "testdata"
     return TestDataManager(data_dir=str(data_dir), env=env)
-
-@pytest.fixture(scope="session")
-def config_manager(env):
-    """Create ConfigManager for the session with correct environment"""
-    from config.config_manager import ConfigManager
-    return ConfigManager(env=env)
