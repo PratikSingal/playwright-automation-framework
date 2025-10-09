@@ -1,20 +1,19 @@
 import pytest
 import allure
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
-from config.config_manager import config
 from loguru import logger
 from datetime import datetime
 from pathlib import Path
 
 
 @pytest.fixture(scope="session")
-def browser() -> Browser:
+def browser(config_manager) -> Browser:
     """
     Create browser instance for the session
     Browser type is determined by configuration
     """
-    browser_type = config.browser_type
-    headless = config.headless
+    browser_type = config_manager.browser_type
+    headless = config_manager.headless
     
     logger.info(f"Launching {browser_type} browser (headless: {headless})")
     
@@ -24,18 +23,18 @@ def browser() -> Browser:
     if browser_type == "chromium":
         browser = playwright.chromium.launch(
             headless=headless,
-            slow_mo=config.get('browser.slow_mo', 0),
+            slow_mo=config_manager.get('browser.slow_mo', 0),
             args=['--start-maximized'] if not headless else []
         )
     elif browser_type == "firefox":
         browser = playwright.firefox.launch(
             headless=headless,
-            slow_mo=config.get('browser.slow_mo', 0)
+            slow_mo=config_manager.get('browser.slow_mo', 0)
         )
     elif browser_type == "webkit":
         browser = playwright.webkit.launch(
             headless=headless,
-            slow_mo=config.get('browser.slow_mo', 0)
+            slow_mo=config_manager.get('browser.slow_mo', 0)
         )
     else:
         playwright.stop()
@@ -51,13 +50,13 @@ def browser() -> Browser:
 
 
 @pytest.fixture(scope="function")
-def context(browser: Browser) -> BrowserContext:
+def context(browser: Browser, config_manager) -> BrowserContext:
     """
     Create a new browser context for each test
     Browser context is like an incognito window - isolated cookies, cache, etc.
     """
-    viewport = config.get('browser.viewport', {'width': 1920, 'height': 1080})
-    record_video = config.get('browser.video', False)
+    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
+    record_video = config_manager.get('browser.video', False)
     
     logger.info("Creating new browser context")
     
@@ -71,7 +70,7 @@ def context(browser: Browser) -> BrowserContext:
     
     # Add video recording if enabled
     if record_video:
-        video_dir = Path(config.get('reporting.videos', 'reports/videos'))
+        video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
         video_dir.mkdir(parents=True, exist_ok=True)
         context_options['record_video_dir'] = str(video_dir)
         context_options['record_video_size'] = viewport
@@ -79,7 +78,7 @@ def context(browser: Browser) -> BrowserContext:
     context = browser.new_context(**context_options)
     
     # Enable tracing for debugging
-    if config.get('browser.trace_on_failure', True):
+    if config_manager.get('browser.trace_on_failure', True):
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
     
     logger.success("Browser context created")
@@ -89,7 +88,7 @@ def context(browser: Browser) -> BrowserContext:
     logger.info("Closing browser context")
     
     # Stop tracing
-    if config.get('browser.trace_on_failure', True):
+    if config_manager.get('browser.trace_on_failure', True):
         try:
             context.tracing.stop()
         except Exception as e:
@@ -99,7 +98,7 @@ def context(browser: Browser) -> BrowserContext:
 
 
 @pytest.fixture(scope="function")
-def page(context: BrowserContext, request) -> Page:
+def page(context: BrowserContext, config_manager, request) -> Page:
     """
     Create a new page for each test
     Handles screenshot and trace capture on failure
@@ -108,13 +107,13 @@ def page(context: BrowserContext, request) -> Page:
     logger.info(f"Creating new page for test: {test_name}")
     
     page = context.new_page()
-    page.set_default_timeout(config.timeout)
-    page.set_default_navigation_timeout(config.timeout)
+    page.set_default_timeout(config_manager.timeout)
+    page.set_default_navigation_timeout(config_manager.timeout)
     
     # Add test info to allure report
-    allure.dynamic.parameter("Browser", config.browser_type)
-    allure.dynamic.parameter("Environment", config.env)
-    allure.dynamic.parameter("Base URL", config.base_url)
+    allure.dynamic.parameter("Browser", config_manager.browser_type)
+    allure.dynamic.parameter("Environment", config_manager.env)
+    allure.dynamic.parameter("Base URL", config_manager.base_url)
     
     logger.success(f"Page created for test: {test_name}")
     
@@ -130,9 +129,9 @@ def page(context: BrowserContext, request) -> Page:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Take screenshot
-        if config.get('browser.screenshot_on_failure', True):
+        if config_manager.get('browser.screenshot_on_failure', True):
             try:
-                screenshot_dir = Path(config.get('reporting.screenshots', 'reports/screenshots'))
+                screenshot_dir = Path(config_manager.get('reporting.screenshots', 'reports/screenshots'))
                 screenshot_dir.mkdir(parents=True, exist_ok=True)
                 screenshot_path = screenshot_dir / f"{test_name}_{timestamp}.png"
                 
@@ -151,9 +150,9 @@ def page(context: BrowserContext, request) -> Page:
                 logger.error(f"Failed to capture screenshot: {str(e)}")
         
         # Save trace
-        if config.get('browser.trace_on_failure', True):
+        if config_manager.get('browser.trace_on_failure', True):
             try:
-                trace_dir = Path(config.get('reporting.allure_results', 'reports/allure-results'))
+                trace_dir = Path(config_manager.get('reporting.allure_results', 'reports/allure-results'))
                 trace_dir.mkdir(parents=True, exist_ok=True)
                 trace_path = trace_dir / f"trace_{test_name}_{timestamp}.zip"
                 
@@ -203,7 +202,7 @@ def page(context: BrowserContext, request) -> Page:
 
 
 @pytest.fixture(scope="function")
-def new_page(context: BrowserContext):
+def new_page(context: BrowserContext, config_manager):
     """
     Factory fixture to create multiple pages in a single test
     Usage: page2 = new_page()
@@ -212,7 +211,7 @@ def new_page(context: BrowserContext):
     
     def _create_page():
         page = context.new_page()
-        page.set_default_timeout(config.timeout)
+        page.set_default_timeout(config_manager.timeout)
         pages.append(page)
         logger.info(f"Created new page (total: {len(pages)})")
         return page
