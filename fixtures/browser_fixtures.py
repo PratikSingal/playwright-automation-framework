@@ -50,13 +50,12 @@ def browser(config_manager) -> Browser:
 
 
 @pytest.fixture(scope="function")
-def context(browser: Browser, config_manager) -> BrowserContext:
+def context(browser: Browser, config_manager, request) -> BrowserContext:
     """
     Create a new browser context for each test
     Browser context is like an incognito window - isolated cookies, cache, etc.
     """
     viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
-    record_video = config_manager.get('browser.video', False)
     
     logger.info("Creating new browser context")
     
@@ -68,12 +67,11 @@ def context(browser: Browser, config_manager) -> BrowserContext:
         'accept_downloads': True
     }
     
-    # Add video recording if enabled
-    if record_video:
-        video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
-        video_dir.mkdir(parents=True, exist_ok=True)
-        context_options['record_video_dir'] = str(video_dir)
-        context_options['record_video_size'] = viewport
+    # Always enable video recording to capture it
+    video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
+    video_dir.mkdir(parents=True, exist_ok=True)
+    context_options['record_video_dir'] = str(video_dir)
+    context_options['record_video_size'] = viewport
     
     context = browser.new_context(**context_options)
     
@@ -84,6 +82,30 @@ def context(browser: Browser, config_manager) -> BrowserContext:
     logger.success("Browser context created")
     
     yield context
+    
+    # Check if test failed
+    test_failed = False
+    if hasattr(request.node, 'rep_call'):
+        test_failed = request.node.rep_call.failed
+    
+    # Only keep video if test failed
+    if test_failed:
+        logger.warning("Test failed - keeping video")
+        # Video is automatically saved by Playwright
+    else:
+        logger.info("Test passed - deleting video")
+        # Delete video for passed tests
+        try:
+            for page in context.pages:
+                video_path = page.video.path() if page.video else None
+                if video_path:
+                    page.close()  # Close page to finish video
+                    video_file = Path(video_path)
+                    if video_file.exists():
+                        video_file.unlink()
+                        logger.debug(f"Deleted video: {video_path}")
+        except Exception as e:
+            logger.debug(f"Could not delete video: {str(e)}")
     
     logger.info("Closing browser context")
     
