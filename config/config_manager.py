@@ -66,5 +66,3 @@ class ConfigManager:
         return self.get('api', {})
 
 
-# Singleton instance
-config = ConfigManager()

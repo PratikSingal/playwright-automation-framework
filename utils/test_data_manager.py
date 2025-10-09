@@ -7,13 +7,15 @@ import copy
 
 
 class TestDataManager:
-    """Manager for handling test data from JSON files"""
+    """Manager for handling environment-specific test data from JSON files"""
     
-    def __init__(self, data_dir: str = "testdata"):
+    def __init__(self, data_dir: str = "testdata", env: str = "dev"):
         self.data_dir = Path(data_dir)
+        self.env = env.lower()  # ✅ Store environment
         self.test_mapping_file = self.data_dir / "test_mapping.json"
         self.test_mapping = self._load_test_mapping()
         self._cached_data = {}
+        logger.info(f"Initialized TestDataManager for environment: {self.env}")
     
     def _load_test_mapping(self) -> Dict[str, Any]:
         """Load test case to data file mapping"""
@@ -52,12 +54,40 @@ class TestDataManager:
         with open(self.test_mapping_file, 'w', encoding='utf-8') as file:
             json.dump(empty_mapping, file, indent=4, ensure_ascii=False)
     
-    def get_test_data(self, test_case_id: str, use_cache: bool = True) -> Dict[str, Any]:
+    def _get_data_file_path(self, base_filename: str) -> Path:
         """
-        Get test data for a specific test case
+        Get the appropriate data file path based on environment
+        Priority: env-specific file > base file
+        
+        Example:
+        - If env='qa' and base_filename='registration_data.json'
+        - First tries: testdata/qa/registration_data.json
+        - Falls back to: testdata/registration_data.json
+        """
+        # Try environment-specific file first
+        env_file = self.data_dir / self.env / base_filename
+        if env_file.exists():
+            logger.info(f"Using environment-specific data file: {env_file}")
+            return env_file
+        
+        # Fall back to base file
+        base_file = self.data_dir / base_filename
+        if base_file.exists():
+            logger.info(f"Using base data file: {base_file}")
+            return base_file
+        
+        raise FileNotFoundError(
+            f"Data file not found: {base_filename} "
+            f"(checked: {env_file}, {base_file})"
+        )
+    
+    def get_test_data(self, test_case_id: str, data_key: Optional[str] = None, use_cache: bool = True) -> Dict[str, Any]:
+        """
+        Get test data for a specific test case (environment-aware)
         
         Args:
             test_case_id: Test case identifier (e.g., 'test_registration_valid_user')
+            data_key: Optional key to get specific data set
             use_cache: Whether to use cached data if available
             
         Returns:
@@ -67,10 +97,12 @@ class TestDataManager:
             ValueError: If test case ID not found in mapping
             FileNotFoundError: If data file doesn't exist
         """
+        cache_key = f"{test_case_id}:{data_key}" if data_key else test_case_id
+        
         # Check cache first
-        if use_cache and test_case_id in self._cached_data:
-            logger.debug(f"Returning cached data for '{test_case_id}'")
-            return copy.deepcopy(self._cached_data[test_case_id])
+        if use_cache and cache_key in self._cached_data:
+            logger.debug(f"Returning cached data for '{cache_key}'")
+            return copy.deepcopy(self._cached_data[cache_key])
         
         # Validate test case exists in mapping
         if test_case_id not in self.test_mapping:
@@ -83,13 +115,10 @@ class TestDataManager:
             )
         
         mapping = self.test_mapping[test_case_id]
-        data_file = self.data_dir / mapping['data_file']
-        dataset_name = mapping.get('dataset', None)
         
-        # Validate data file exists
-        if not data_file.exists():
-            logger.error(f"Data file not found: {data_file}")
-            raise FileNotFoundError(f"Data file not found: {data_file}")
+        # ✅ Use environment-aware file path
+        data_file = self._get_data_file_path(mapping['data_file'])
+        dataset_name = mapping.get('dataset', data_key)
         
         # Load data from file
         try:
@@ -117,9 +146,9 @@ class TestDataManager:
             test_data = all_data
         
         # Cache the data
-        self._cached_data[test_case_id] = copy.deepcopy(test_data)
+        self._cached_data[cache_key] = copy.deepcopy(test_data)
         
-        logger.success(f"Retrieved test data for '{test_case_id}' from {data_file}")
+        logger.success(f"Retrieved test data for '{test_case_id}' from {data_file} ({self.env} environment)")
         logger.debug(f"Data keys: {list(test_data.keys())}")
         
         return copy.deepcopy(test_data)
@@ -127,15 +156,15 @@ class TestDataManager:
     def get_data_from_file(
         self, 
         file_name: str, 
-        dataset: Optional[str] = None,
+        data_key: Optional[str] = None,
         use_cache: bool = False
     ) -> Dict[str, Any]:
         """
-        Get data directly from a file without using test mapping
+        Get data directly from a file without using test mapping (environment-aware)
         
         Args:
             file_name: Name of the data file (e.g., 'registration_data.json')
-            dataset: Optional specific dataset name within the file
+            data_key: Optional specific dataset name within the file
             use_cache: Whether to use cached data
             
         Returns:
@@ -144,17 +173,14 @@ class TestDataManager:
         Raises:
             FileNotFoundError: If data file doesn't exist
         """
-        cache_key = f"{file_name}:{dataset}" if dataset else file_name
+        cache_key = f"{file_name}:{data_key}" if data_key else file_name
         
         if use_cache and cache_key in self._cached_data:
             logger.debug(f"Returning cached data for '{cache_key}'")
             return copy.deepcopy(self._cached_data[cache_key])
         
-        data_file = self.data_dir / file_name
-        
-        if not data_file.exists():
-            logger.error(f"Data file not found: {data_file}")
-            raise FileNotFoundError(f"Data file not found: {data_file}")
+        # ✅ Use environment-aware file path
+        data_file = self._get_data_file_path(file_name)
         
         try:
             with open(data_file, 'r', encoding='utf-8') as file:
@@ -166,21 +192,22 @@ class TestDataManager:
             logger.error(f"Error loading file {data_file}: {str(e)}")
             raise
         
-        if dataset:
-            if dataset not in all_data:
+        if data_key:
+            if data_key not in all_data:
                 available_datasets = list(all_data.keys())
-                logger.error(f"Dataset '{dataset}' not found in {data_file}")
+                logger.error(f"Dataset '{data_key}' not found in {data_file}")
                 logger.info(f"Available datasets: {available_datasets}")
                 raise ValueError(
-                    f"Dataset '{dataset}' not found in {data_file}. "
+                    f"Dataset '{data_key}' not found in {data_file}. "
                     f"Available: {available_datasets}"
                 )
-            result = all_data[dataset]
+            result = all_data[data_key]
         else:
             result = all_data
         
         self._cached_data[cache_key] = copy.deepcopy(result)
-        logger.success(f"Loaded data from {data_file}" + (f", dataset: {dataset}" if dataset else ""))
+        logger.success(f"Loaded data from {data_file} ({self.env} environment)" + 
+                      (f", dataset: {data_key}" if data_key else ""))
         
         return copy.deepcopy(result)
     
@@ -194,11 +221,7 @@ class TestDataManager:
         Returns:
             List of dataset names
         """
-        data_file = self.data_dir / file_name
-        
-        if not data_file.exists():
-            logger.error(f"Data file not found: {data_file}")
-            raise FileNotFoundError(f"Data file not found: {data_file}")
+        data_file = self._get_data_file_path(file_name)
         
         with open(data_file, 'r', encoding='utf-8') as file:
             all_data = json.load(file)
@@ -206,6 +229,40 @@ class TestDataManager:
         datasets = list(all_data.keys())
         logger.info(f"Available datasets in {file_name}: {datasets}")
         return datasets
+    
+    def merge_data(self, *data_dicts: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merge multiple data dictionaries (later values override earlier ones)
+        
+        Args:
+            *data_dicts: Variable number of dictionaries to merge
+        
+        Returns:
+            Merged dictionary
+        """
+        merged = {}
+        for data_dict in data_dicts:
+            merged.update(data_dict)
+        
+        logger.info(f"Merged {len(data_dicts)} data dictionaries")
+        return merged
+    
+    def override_data(self, base_data: Dict[str, Any], **overrides) -> Dict[str, Any]:
+        """
+        Override specific fields in base data
+        
+        Args:
+            base_data: Base data dictionary
+            **overrides: Key-value pairs to override
+        
+        Returns:
+            Data dictionary with overrides applied
+        """
+        updated_data = base_data.copy()
+        updated_data.update(overrides)
+        
+        logger.info(f"Applied {len(overrides)} overrides to data")
+        return updated_data
     
     def save_test_data(
         self, 
@@ -289,7 +346,3 @@ class TestDataManager:
         except Exception as e:
             logger.error(f"Test data validation failed for '{test_case_id}': {str(e)}")
             return False
-
-
-# Singleton instance
-test_data_manager = TestDataManager()
