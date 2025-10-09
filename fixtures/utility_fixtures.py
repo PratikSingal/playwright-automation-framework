@@ -7,15 +7,9 @@ from config.config_manager import config
 
 
 @pytest.fixture(scope="session")
-def base_url():
-    """
-    Get base URL from configuration
-    
-    Usage in test:
-        def test_something(base_url):
-            full_url = f"{base_url}/login"
-    """
-    url = config.base_url
+def base_url(config_manager):
+    """Get base URL from configuration"""
+    url = config_manager.base_url
     logger.info(f"Base URL: {url}")
     return url
 
@@ -77,17 +71,10 @@ def temp_file(tmp_path):
 
 
 @pytest.fixture(scope="function")
-def screenshot_path(timestamp):
-    """
-    Get path for saving screenshots
-    
-    Usage in test:
-        def test_something(page, screenshot_path):
-            path = screenshot_path("test_name")
-            page.screenshot(path=path)
-    """
+def screenshot_path(timestamp, config_manager):
+    """Get path for saving screenshots"""
     def _get_path(name: str) -> str:
-        screenshot_dir = Path(config.get('reporting.screenshots', 'reports/screenshots'))
+        screenshot_dir = Path(config_manager.get('reporting.screenshots', 'reports/screenshots'))
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         path = screenshot_dir / f"{name}_{timestamp}.png"
         logger.debug(f"Screenshot path: {path}")
@@ -163,27 +150,18 @@ def retry_helper():
 
 
 @pytest.fixture(scope="function")
-def environment_info():
-    """
-    Get environment information
-    
-    Usage in test:
-        def test_something(environment_info):
-            if environment_info['env'] == 'prod':
-                # Skip test in production
-                pytest.skip("Skipping in production")
-    """
+def environment_info(config_manager):
+    """Get environment information"""
     info = {
-        'env': config.env,
-        'base_url': config.base_url,
-        'browser': config.browser_type,
-        'headless': config.headless,
-        'timeout': config.timeout
+        'env': config_manager.env,
+        'base_url': config_manager.base_url,
+        'browser': config_manager.browser_type,
+        'headless': config_manager.headless,
+        'timeout': config_manager.timeout
     }
     
     logger.info(f"Environment info: {info}")
     
-    # Attach to Allure
     import json
     allure.attach(
         json.dumps(info, indent=2),
@@ -195,19 +173,12 @@ def environment_info():
 
 
 @pytest.fixture(scope="function")
-def skip_if_environment():
-    """
-    Skip test based on environment
-    
-    Usage in test:
-        def test_something(skip_if_environment):
-            skip_if_environment(['prod', 'staging'])
-            # Test will only run in dev/qa
-    """
+def skip_if_environment(config_manager):
+    """Skip test based on environment"""
     def _skip(environments: list):
-        if config.env in environments:
-            logger.warning(f"Skipping test in {config.env} environment")
-            pytest.skip(f"Test skipped in {config.env} environment")
+        if config_manager.env in environments:
+            logger.warning(f"Skipping test in {config_manager.env} environment")
+            pytest.skip(f"Test skipped in {config_manager.env} environment")
     
     return _skip
 

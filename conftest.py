@@ -121,3 +121,9 @@ def test_data_manager(env):
     
     data_dir = Path(__file__).parent / "testdata"
     return TestDataManager(data_dir=str(data_dir), env=env)
+
+@pytest.fixture(scope="session")
+def config_manager(env):
+    """Create ConfigManager for the session with correct environment"""
+    from config.config_manager import ConfigManager
+    return ConfigManager(env=env)
