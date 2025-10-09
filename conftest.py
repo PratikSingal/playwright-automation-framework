@@ -111,3 +111,13 @@ def browser_name(request):
 def headless_mode(request):
     """Get headless mode from command line"""
     return request.config.getoption("--headless")
+
+
+@pytest.fixture(scope="session")
+def test_data_manager(env):
+    """Create TestDataManager with current environment"""
+    from utils.test_data_manager import TestDataManager
+    from pathlib import Path
+    
+    data_dir = Path(__file__).parent / "testdata"
+    return TestDataManager(data_dir=str(data_dir), env=env)

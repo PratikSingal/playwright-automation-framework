@@ -145,8 +145,88 @@ class BasePage:
             self.actions.click_by_text(locator, exact=exact)
     
     def _fill_by_locator(self, field_type: str, locator: str, value: Any, field_config: Dict) -> None:
-        """Fill field using traditional CSS/XPath locator"""
-        if field_type == 'textbox':
+        """Fill field using traditional CSS/XPath locator or handle special dropdown types"""
+        
+        # ==========================================
+        # CUSTOM DROPDOWNS (NON-SELECT TAG)
+        # ==========================================
+        if field_type == 'custom_dropdown_iframe':
+            # Custom dropdown inside iframe using label
+            iframe_loc = field_config.get('iframe_locator')
+            label = field_config.get('label')
+            placeholder = field_config.get('placeholder')
+            exact = field_config.get('exact', True)
+            
+            if label:
+                self.actions.select_custom_dropdown_by_label_in_iframe(
+                    iframe_loc, label, str(value), exact
+                )
+            elif placeholder:
+                self.actions.select_custom_dropdown_by_placeholder_in_iframe(
+                    iframe_loc, placeholder, str(value), exact
+                )
+            else:
+                raise ValueError(f"Custom dropdown in iframe must have 'label' or 'placeholder'")
+        
+        elif field_type == 'custom_dropdown':
+            # Custom dropdown without iframe using label
+            label = field_config.get('label')
+            exact = field_config.get('exact', True)
+            
+            if label:
+                self.actions.select_custom_dropdown_by_label(label, str(value), exact)
+            else:
+                raise ValueError(f"Custom dropdown must have 'label'")
+        
+        # ==========================================
+        # STANDARD SELECT TAG DROPDOWNS
+        # ==========================================
+        elif field_type == 'dropdown':
+            # Check if it's in iframe
+            if 'iframe_locator' in field_config:
+                iframe_loc = field_config['iframe_locator']
+                label = field_config.get('label')
+                
+                if label:
+                    # Select dropdown by label in iframe
+                    if 'select_by' in field_config:
+                        select_by = field_config['select_by']
+                        if select_by == 'value':
+                            self.actions.select_dropdown_by_label_in_iframe(
+                                iframe_loc, label, value=str(value)
+                            )
+                        elif select_by == 'label':
+                            self.actions.select_dropdown_by_label_in_iframe(
+                                iframe_loc, label, label=str(value)
+                            )
+                        elif select_by == 'index':
+                            self.actions.select_dropdown_by_label_in_iframe(
+                                iframe_loc, label, index=int(value)
+                            )
+                    else:
+                        # Default to value
+                        self.actions.select_dropdown_by_label_in_iframe(
+                            iframe_loc, label, value=str(value)
+                        )
+                else:
+                    raise ValueError("Dropdown in iframe must have 'label'")
+            else:
+                # Regular dropdown (not in iframe)
+                if 'select_by' in field_config:
+                    select_by = field_config['select_by']
+                    if select_by == 'value':
+                        self.actions.select_dropdown(locator, value=str(value))
+                    elif select_by == 'label':
+                        self.actions.select_dropdown(locator, label=str(value))
+                    elif select_by == 'index':
+                        self.actions.select_dropdown(locator, index=int(value))
+                else:
+                    self.actions.select_dropdown(locator, value=str(value))
+        
+        # ==========================================
+        # OTHER FIELD TYPES
+        # ==========================================
+        elif field_type == 'textbox':
             self.actions.fill_textbox(locator, str(value))
         
         elif field_type == 'textarea':
@@ -158,24 +238,15 @@ class BasePage:
         elif field_type == 'checkbox':
             self.actions.select_checkbox(locator, check=bool(value))
         
-        elif field_type == 'dropdown':
-            if 'select_by' in field_config:
-                select_by = field_config['select_by']
-                if select_by == 'value':
-                    self.actions.select_dropdown(locator, value=str(value))
-                elif select_by == 'label':
-                    self.actions.select_dropdown(locator, label=str(value))
-                elif select_by == 'index':
-                    self.actions.select_dropdown(locator, index=int(value))
-            else:
-                self.actions.select_dropdown(locator, value=str(value))
-        
         elif field_type == 'file':
             self.actions.upload_file(locator, str(value))
         
         elif field_type == 'link':
             if bool(value):
                 self.actions.click(locator)
+        
+        else:
+            logger.warning(f"Unknown field type '{field_type}'")
 
         
     def verify_form_data(

@@ -1,0 +1,348 @@
+"""
+Complete Field Mapping Examples for All Dropdown Types
+Use this in your POM classes (e.g., RegistrationPage, ApplicationPage)
+"""
+
+# Example POM with all dropdown types
+class ApplicationPage(BasePage):
+    
+    FIELD_MAPPING = {
+        # ==========================================
+        # STANDARD <SELECT> TAG DROPDOWNS
+        # ==========================================
+        
+        # Standard dropdown - Select by value
+        'country': {
+            'locator': '#country',
+            'type': 'dropdown',
+            'method': 'locator',
+            'select_by': 'value'
+        },
+        
+        # Standard dropdown - Select by label (visible text)
+        'state': {
+            'locator': 'select[name="state"]',
+            'type': 'dropdown',
+            'method': 'locator',
+            'select_by': 'label'
+        },
+        
+        # Standard dropdown - Select by index
+        'city': {
+            'locator': '//select[@id="city"]',
+            'type': 'dropdown',
+            'method': 'locator',
+            'select_by': 'index'
+        },
+        
+        # ==========================================
+        # STANDARD <SELECT> DROPDOWN IN IFRAME
+        # ==========================================
+        
+        # Select dropdown in iframe using label
+        'account_type': {
+            'type': 'dropdown',
+            'method': 'locator',
+            'iframe_locator': '#iframeView',
+            'label': 'Account Type',
+            'select_by': 'value'
+        },
+        
+        'branch': {
+            'type': 'dropdown',
+            'method': 'locator',
+            'iframe_locator': '#iframeView',
+            'label': 'Branch',
+            'select_by': 'label'  # Select by visible text
+        },
+        
+        # ==========================================
+        # CUSTOM DROPDOWNS (NON-SELECT TAG) IN IFRAME
+        # ==========================================
+        
+        # Custom dropdown in iframe using label
+        'application_type': {
+            'type': 'custom_dropdown_iframe',
+            'method': 'get_by_label',
+            'iframe_locator': '#iframeView',
+            'label': 'Application Type',
+            'exact': True
+        },
+        
+        'product': {
+            'type': 'custom_dropdown_iframe',
+            'method': 'get_by_label',
+            'iframe_locator': '#iframeView',
+            'label': 'Product',
+            'exact': True
+        },
+        
+        'category': {
+            'type': 'custom_dropdown_iframe',
+            'method': 'get_by_label',
+            'iframe_locator': '#iframeView',
+            'label': 'Category',
+            'exact': False  # Partial match
+        },
+        
+        # Custom dropdown using placeholder
+        'transaction_type': {
+            'type': 'custom_dropdown_iframe',
+            'method': 'get_by_placeholder',
+            'iframe_locator': '#iframeView',
+            'placeholder': 'Select Transaction Type',
+            'exact': True
+        },
+        
+        # ==========================================
+        # CUSTOM DROPDOWNS (NON-SELECT TAG) WITHOUT IFRAME
+        # ==========================================
+        
+        'language': {
+            'type': 'custom_dropdown',
+            'method': 'get_by_label',
+            'label': 'Language',
+            'exact': True
+        },
+        
+        'timezone': {
+            'type': 'custom_dropdown',
+            'method': 'get_by_label',
+            'label': 'Timezone',
+            'exact': False
+        },
+        
+        # ==========================================
+        # OTHER FIELDS (for context)
+        # ==========================================
+        
+        'first_name': {
+            'locator': '#firstName',
+            'type': 'textbox',
+            'method': 'locator'
+        },
+        
+        'email': {
+            'locator': 'input[name="email"]',
+            'type': 'textbox',
+            'method': 'locator'
+        },
+        
+        'terms_conditions': {
+            'locator': '#terms',
+            'type': 'checkbox',
+            'method': 'locator'
+        }
+    }
+    
+    # Submit button locator
+    SUBMIT_BUTTON = '#submitBtn'
+    
+    def __init__(self, page):
+        super().__init__(page)
+        logger.info("Initialized Application Page")
+    
+    @allure.step("Fill application form")
+    def fill_application_form(self, data: Dict[str, Any]) -> None:
+        """
+        Fill the application form with provided data
+        
+        Args:
+            data: Dictionary containing form field values from JSON
+        """
+        logger.info("Filling application form with data")
+        self.fill_form_data(self.FIELD_MAPPING, data)
+        logger.success("Application form filled successfully")
+    
+    @allure.step("Submit application form")
+    def submit_form(self) -> None:
+        """Submit the application form"""
+        logger.info("Submitting application form")
+        self.actions.click(self.SUBMIT_BUTTON)
+        logger.success("Application form submitted")
+
+
+# ==========================================
+# TEST DATA FILE EXAMPLES
+# ==========================================
+
+"""
+File: testdata/application_data.json
+
+{
+  "test_case_standard_dropdowns": {
+    "first_name": "John",
+    "email": "john@example.com",
+    "country": "IN",
+    "state": "Maharashtra",
+    "city": 0,
+    "terms_conditions": true
+  },
+  
+  "test_case_iframe_select_dropdowns": {
+    "first_name": "Jane",
+    "email": "jane@example.com",
+    "account_type": "savings",
+    "branch": "Mumbai Central",
+    "terms_conditions": true
+  },
+  
+  "test_case_custom_dropdowns_iframe": {
+    "first_name": "Raj",
+    "email": "raj@example.com",
+    "application_type": "T24",
+    "product": "Savings Account",
+    "category": "Personal Banking",
+    "transaction_type": "NEFT",
+    "terms_conditions": true
+  },
+  
+  "test_case_custom_dropdowns_no_iframe": {
+    "first_name": "Alice",
+    "email": "alice@example.com",
+    "language": "English",
+    "timezone": "Asia/Kolkata",
+    "terms_conditions": true
+  },
+  
+  "test_case_mixed_all": {
+    "first_name": "Bob",
+    "email": "bob@example.com",
+    "country": "US",
+    "state": "California",
+    "application_type": "USPS_Swap",
+    "product": "Current Account",
+    "language": "English",
+    "account_type": "current",
+    "branch": "New York",
+    "terms_conditions": true
+  }
+}
+"""
+
+
+# ==========================================
+# ENVIRONMENT-SPECIFIC DATA
+# ==========================================
+
+"""
+File: testdata/qa/application_data.json
+
+{
+  "test_case_mixed_all": {
+    "first_name": "QA_User",
+    "email": "qa.user@testenv.com",
+    "country": "IN",
+    "state": "Delhi",
+    "application_type": "T24",
+    "product": "QA Test Account",
+    "language": "English",
+    "account_type": "test_account",
+    "branch": "QA Branch",
+    "terms_conditions": true
+  }
+}
+
+File: testdata/uat/application_data.json
+
+{
+  "test_case_mixed_all": {
+    "first_name": "UAT_User",
+    "email": "uat.user@testenv.com",
+    "country": "IN",
+    "state": "Karnataka",
+    "application_type": "USPS_Swap",
+    "product": "UAT Test Account",
+    "language": "English",
+    "account_type": "uat_account",
+    "branch": "UAT Branch",
+    "terms_conditions": true
+  }
+}
+"""
+
+
+# ==========================================
+# USAGE IN TEST
+# ==========================================
+
+"""
+import pytest
+import allure
+from pages.application_page import ApplicationPage
+
+@allure.feature("Application Form")
+class TestApplicationForm:
+    
+    @allure.title("Test with standard dropdowns")
+    @pytest.mark.smoke
+    def test_standard_dropdowns(
+        self,
+        page,
+        application_page: ApplicationPage,
+        get_test_data,
+        base_url: str
+    ):
+        # Get data from file
+        data = get_test_data('test_application_form', 'test_case_standard_dropdowns')
+        
+        # Fill form - framework handles everything
+        application_page.navigate_to(f"{base_url}/application")
+        application_page.fill_application_form(data)
+        application_page.submit_form()
+    
+    @allure.title("Test with custom dropdowns in iframe")
+    @pytest.mark.regression
+    def test_custom_dropdowns_iframe(
+        self,
+        application_page: ApplicationPage,
+        get_test_data,
+        base_url: str
+    ):
+        # Get data - automatically uses env-specific values (qa/uat)
+        data = get_test_data('test_application_form', 'test_case_custom_dropdowns_iframe')
+        
+        # Fill form
+        application_page.navigate_to(f"{base_url}/application")
+        application_page.fill_application_form(data)
+        application_page.submit_form()
+    
+    @allure.title("Test with mixed dropdown types")
+    @pytest.mark.regression
+    def test_mixed_dropdowns(
+        self,
+        application_page: ApplicationPage,
+        get_test_data,
+        base_url: str
+    ):
+        # Mix of all dropdown types
+        data = get_test_data('test_application_form', 'test_case_mixed_all')
+        
+        # Framework automatically handles:
+        # - Standard <select> dropdowns
+        # - Custom dropdowns in iframe
+        # - Custom dropdowns without iframe
+        # - All with values from JSON file
+        application_page.navigate_to(f"{base_url}/application")
+        application_page.fill_application_form(data)
+        application_page.submit_form()
+"""
+
+
+# ==========================================
+# COMMAND LINE USAGE
+# ==========================================
+
+"""
+# Run with DEV data
+pytest tests/test_application.py --env=dev --browser=chromium
+
+# Run with QA data (uses testdata/qa/application_data.json)
+pytest tests/test_application.py --env=qa --browser=chromium --headless
+
+# Run with UAT data (uses testdata/uat/application_data.json)
+pytest tests/test_application.py --env=uat --browser=firefox
+
+# Run specific test
+pytest tests/test_application.py::TestApplicationForm::test_custom_dropdowns_iframe --env=qa
+"""

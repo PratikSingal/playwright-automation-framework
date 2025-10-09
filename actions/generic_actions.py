@@ -82,27 +82,6 @@ class GenericActions:
             logger.error(f"Failed to modify checkbox '{locator}': {str(e)}")
             raise
     
-    @allure.step("Select dropdown option: {locator}")
-    def select_dropdown(self, locator: str, value: str = None, label: str = None, index: int = None) -> None:
-        """Select an option from a dropdown by value, label, or index"""
-        try:
-            logger.info(f"Selecting dropdown option from '{locator}'")
-            element = self.page.locator(locator)
-            element.wait_for(state="visible", timeout=self.timeout)
-            
-            if value:
-                element.select_option(value=value)
-            elif label:
-                element.select_option(label=label)
-            elif index is not None:
-                element.select_option(index=index)
-            else:
-                raise ValueError("Must provide value, label, or index")
-            
-            logger.success(f"Successfully selected dropdown option from '{locator}'")
-        except Exception as e:
-            logger.error(f"Failed to select dropdown option from '{locator}': {str(e)}")
-            raise
     
     @allure.step("Click element: {locator}")
     def click(self, locator: str) -> None:
@@ -349,4 +328,183 @@ class GenericActions:
             logger.success(f"Successfully scrolled to element '{locator}'")
         except Exception as e:
             logger.error(f"Failed to scroll to element '{locator}': {str(e)}")
+            raise
+
+
+    # ==========================================
+    # CUSTOM DROPDOWN METHODS (NON-SELECT TAG)
+    # ==========================================
+    
+    @allure.step("Select custom dropdown by label in iframe: {label} -> {option_text}")
+    def select_custom_dropdown_by_label_in_iframe(
+        self, 
+        iframe_locator: str,
+        label: str,
+        option_text: str,
+        exact: bool = True
+    ) -> None:
+        """
+        Select from custom dropdown (non-select tag) using label inside iframe
+        
+        Args:
+            iframe_locator: Iframe locator (e.g., '#iframeView')
+            label: Label text of the dropdown field
+            option_text: Option text to select (from data file)
+            exact: Exact text match for option
+        """
+        try:
+            logger.info(f"Selecting '{option_text}' from custom dropdown with label '{label}' in iframe")
+            frame = self.page.frame_locator(iframe_locator)
+            
+            # Click dropdown using label
+            frame.get_by_label(label).click()
+            
+            # Wait for dropdown options to appear
+            self.page.wait_for_timeout(500)
+            
+            # Select option by text
+            frame.get_by_text(option_text, exact=exact).click()
+            
+            logger.success(f"Successfully selected '{option_text}' from '{label}' dropdown")
+        except Exception as e:
+            logger.error(f"Failed to select custom dropdown by label in iframe: {str(e)}")
+            raise
+    
+    @allure.step("Select custom dropdown by label: {label} -> {option_text}")
+    def select_custom_dropdown_by_label(
+        self, 
+        label: str,
+        option_text: str,
+        exact: bool = True
+    ) -> None:
+        """
+        Select from custom dropdown (non-select tag) using label (no iframe)
+        
+        Args:
+            label: Label text of the dropdown field
+            option_text: Option text to select (from data file)
+            exact: Exact text match for option
+        """
+        try:
+            logger.info(f"Selecting '{option_text}' from custom dropdown with label '{label}'")
+            
+            # Click dropdown using label
+            self.page.get_by_label(label).click()
+            
+            # Wait for dropdown options to appear
+            self.page.wait_for_timeout(500)
+            
+            # Select option by text
+            self.page.get_by_text(option_text, exact=exact).click()
+            
+            logger.success(f"Successfully selected '{option_text}' from '{label}' dropdown")
+        except Exception as e:
+            logger.error(f"Failed to select custom dropdown by label: {str(e)}")
+            raise
+    
+    @allure.step("Select custom dropdown by placeholder in iframe: {placeholder} -> {option_text}")
+    def select_custom_dropdown_by_placeholder_in_iframe(
+        self, 
+        iframe_locator: str,
+        placeholder: str,
+        option_text: str,
+        exact: bool = True
+    ) -> None:
+        """
+        Select from custom dropdown using placeholder inside iframe
+        
+        Args:
+            iframe_locator: Iframe locator
+            placeholder: Placeholder text of the dropdown
+            option_text: Option text to select
+            exact: Exact text match
+        """
+        try:
+            logger.info(f"Selecting '{option_text}' from dropdown with placeholder '{placeholder}' in iframe")
+            frame = self.page.frame_locator(iframe_locator)
+            
+            # Click dropdown using placeholder
+            frame.get_by_placeholder(placeholder).click()
+            
+            # Wait for options
+            self.page.wait_for_timeout(500)
+            
+            # Select option
+            frame.get_by_text(option_text, exact=exact).click()
+            
+            logger.success(f"Successfully selected '{option_text}'")
+        except Exception as e:
+            logger.error(f"Failed to select custom dropdown by placeholder in iframe: {str(e)}")
+            raise
+    
+    # ==========================================
+    # STANDARD SELECT TAG DROPDOWN METHODS
+    # ==========================================
+    
+    @allure.step("Select dropdown option: {locator}")
+    def select_dropdown(self, locator: str, value: str = None, label: str = None, index: int = None) -> None:
+        """
+        Select an option from standard <select> dropdown by value, label, or index
+        
+        Args:
+            locator: CSS/XPath locator for select element
+            value: Value attribute of option
+            label: Visible text of option
+            index: Index of option (0-based)
+        """
+        try:
+            logger.info(f"Selecting dropdown option from '{locator}'")
+            element = self.page.locator(locator)
+            element.wait_for(state="visible", timeout=self.timeout)
+            
+            if value:
+                element.select_option(value=value)
+                logger.success(f"Selected option by value: {value}")
+            elif label:
+                element.select_option(label=label)
+                logger.success(f"Selected option by label: {label}")
+            elif index is not None:
+                element.select_option(index=index)
+                logger.success(f"Selected option by index: {index}")
+            else:
+                raise ValueError("Must provide value, label, or index")
+            
+        except Exception as e:
+            logger.error(f"Failed to select dropdown option from '{locator}': {str(e)}")
+            raise
+    
+    @allure.step("Select dropdown by label in iframe: {label_text}")
+    def select_dropdown_by_label_in_iframe(
+        self,
+        iframe_locator: str,
+        label_text: str,
+        value: str = None,
+        label: str = None,
+        index: int = None
+    ) -> None:
+        """
+        Select standard <select> dropdown using its label inside iframe
+        
+        Args:
+            iframe_locator: Iframe locator
+            label_text: Label text for the dropdown
+            value/label/index: Selection criteria
+        """
+        try:
+            logger.info(f"Selecting <select> dropdown with label '{label_text}' in iframe")
+            frame = self.page.frame_locator(iframe_locator)
+            element = frame.get_by_label(label_text)
+            
+            if value:
+                element.select_option(value=value)
+            elif label:
+                element.select_option(label=label)
+            elif index is not None:
+                element.select_option(index=index)
+            else:
+                raise ValueError("Must provide value, label, or index")
+            
+            logger.success(f"Successfully selected from dropdown")
+        except Exception as e:
+            logger.error(f"Failed to select dropdown by label in iframe: {str(e)}")
             raise
