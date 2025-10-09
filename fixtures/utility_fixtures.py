@@ -3,7 +3,6 @@ import allure
 from pathlib import Path
 from datetime import datetime
 from loguru import logger
-from config.config_manager import config
 
 
 @pytest.fixture(scope="session")
