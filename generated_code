@@ -1,0 +1,55 @@
+import allure
+from playwright.sync_api import Page
+from pages.base_page import BasePage
+from loguru import logger
+
+
+class NewAccountPage(BasePage):
+    """Page Object Model for New Account Page"""
+    
+    NEW_ACCOUNT_LINK = "New Account"
+    
+    def __init__(self, page: Page):
+        super().__init__(page)
+        logger.info("Initialized New Account Page")
+    
+    @allure.step("Click on New Account link")
+    def click_new_account_link(self) -> None:
+        """Click on the 'New Account' link"""
+        logger.info("Clicking on 'New Account' link")
+        self.page.get_by_text(self.NEW_ACCOUNT_LINK, exact=True).click()
+        logger.success("Successfully clicked 'New Account' link")
+
+
+###########
+# 
+
+import pytest
+import allure
+from pages.new_account_page import NewAccountPage
+from playwright.sync_api import Page
+from loguru import logger
+
+
+@allure.feature("New Account")
+@pytest.mark.gui
+class TestNewAccount:
+    
+    @allure.title("Test click New Account link")
+    @pytest.mark.smoke
+    def test_click_new_account_link(
+        self,
+        page: Page,
+        base_url: str
+    ):
+        """Test clicking New Account link"""
+        
+        new_account_page = NewAccountPage(page)
+        
+        # Navigate to URL
+        new_account_page.navigate_to(base_url)
+        logger.info(f"Opened URL: {base_url}")
+        
+        # Click New Account link
+        new_account_page.click_new_account_link()
+        logger.success("Clicked New Account link")     
