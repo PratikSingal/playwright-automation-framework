@@ -517,3 +517,38 @@ class GenericActions:
         except Exception as e:
             logger.error(f"Failed to click by text '{text}' at index {index}: {str(e)}")
             raise
+
+    @allure.step("Click by text with index in iframe: {iframe_locator} -> {text} at index {index}")
+    def click_by_text_at_index_in_iframe(
+        self, 
+        iframe_locator: str, 
+        text: str, 
+        index: int = 0, 
+        exact: bool = False
+    ) -> None:
+        """
+        Click element by text at specific index inside iframe when multiple matches exist
+        
+        Args:
+            iframe_locator: Iframe CSS selector (e.g., '#iframeView')
+            text: Text to search for (e.g., 'New Account')
+            index: Which occurrence to click (0 = first, 1 = second, etc.)
+            exact: Exact text match or partial match
+        
+        Example:
+            # Click first "New Account"
+            actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=0)
+            
+            # Click second "New Account"
+            actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=1)
+        """
+        try:
+            logger.info(f"Clicking text '{text}' at index {index} in iframe '{iframe_locator}'")
+            frame = self.page.frame_locator(iframe_locator)
+            frame.get_by_text(text, exact=exact).nth(index).click()
+            logger.success(f"✓ Clicked '{text}' at index {index} in iframe")
+        except Exception as e:
+            logger.error(f"✗ Failed to click text '{text}' at index {index} in iframe: {str(e)}")
+            raise
+
+
