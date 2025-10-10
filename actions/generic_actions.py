@@ -799,61 +799,71 @@ def select_dropdown_in_iframe_by_label(
     iframe_locator: str,
     label_text: str,
     option_text: str,
-    input_class: str = "PB_DropDownInput",
     button_class: str = "PB_DropDownButton",
     option_index: int = 0,
     exact: bool = False
 ) -> None:
     """
-    Generic method to select dropdown in iframe when label and input are in separate <td> elements
-    Clicks the dropdown BUTTON (not input) to open the dropdown
+    Select dropdown in iframe using label text
+    Works when label and dropdown are in sibling <td> elements
     
     HTML Structure:
-    <iframe id="iframeView">
-      <tr>
-        <td><label>Account Entity</label></td>
-        <td>
-          <span>
-            <input class="PB_DropDownInput" />
-            <img class="PB_DropDownButton" />  ← Clicks this!
-          </span>
-        </td>
-      </tr>
-    </iframe>
+    <tr>
+      <td><label>Account Entity</label></td>
+      <td>
+        <span class="PB_DropDownSPAN">
+          <img class="PB_DropDownButton" />
+        </span>
+      </td>
+    </tr>
     
     Args:
         iframe_locator: Iframe CSS selector (e.g., '#iframeView')
-        label_text: Label text to locate the dropdown
-        option_text: Option text to select
-        input_class: CSS class of dropdown input (default: PB_DropDownInput)
-        button_class: CSS class of dropdown button (default: PB_DropDownButton)
-        option_index: Which occurrence if multiple options have same text
-        exact: Use exact text match for option selection
+        label_text: Label text (e.g., 'Account Entity')
+        option_text: Option to select (e.g., 'USPB')
+        button_class: CSS class of button (default: PB_DropDownButton)
+        option_index: Which occurrence if duplicates (default: 0)
+        exact: Exact text match (default: False)
     """
     try:
         logger.info(f"Selecting '{option_text}' from dropdown with label '{label_text}' in iframe")
         
-        # Step 1: Access the iframe
+        # Access iframe
         frame = self.page.frame_locator(iframe_locator)
         
-        # Step 2: Build XPath to find dropdown BUTTON (not input) next to label
-        # XPath: Find label → parent <td> → sibling <td> → find button
-        xpath = f'//label[contains(text(), "{label_text}")]/parent::td/following-sibling::td//*[contains(@class, "{button_class}")]'
+        # XPath Strategy: Find label → go to parent <td> → go to next sibling <td> → find button
+        # This works for the structure where label and button are in separate <td> elements
+        xpath_button = (
+            f'//label[contains(text(), "{label_text}")]'
+            f'/ancestor::td[1]'                              # Go up to the <td> containing label
+            f'/following-sibling::td[1]'                     # Go to next <td>
+            f'//img[contains(@class, "{button_class}")]'    # Find button image
+        )
         
-        logger.info(f"Clicking dropdown button using XPath...")
-        dropdown_button = frame.locator(f'xpath={xpath}')
+        logger.debug(f"Using XPath: {xpath_button}")
+        
+        # Find and click button
+        dropdown_button = frame.locator(f'xpath={xpath_button}')
         dropdown_button.wait_for(state="visible", timeout=self.timeout)
-        
-        # Step 3: Click the BUTTON to open dropdown (not the input!)
         dropdown_button.click()
+        
         logger.info(f"✓ Dropdown opened")
         
-        # Step 4: Wait for dropdown options to appear
+        # Wait for dropdown options to appear
         self.page.wait_for_timeout(800)
         
-        # Step 5: Select option by text
+        # Find and select option
         logger.info(f"Selecting option '{option_text}' at index {option_index}...")
         option = frame.get_by_text(option_text, exact=exact).nth(option_index)
+        
+        # Scroll into view if needed
+        try:
+            option.scroll_into_view_if_needed(timeout=3000)
+            logger.debug(f"✓ Scrolled option into view")
+        except:
+            pass
+        
+        # Click option
         option.wait_for(state="visible", timeout=self.timeout)
         option.click()
         
@@ -861,7 +871,7 @@ def select_dropdown_in_iframe_by_label(
         
     except Exception as e:
         logger.error(f"✗ Failed to select dropdown '{label_text}': {str(e)}")
-        screenshot_name = f"error_iframe_dropdown_{label_text.replace(' ', '_')}_{option_text.replace(' ', '_')}.png"
+        screenshot_name = f"error_dropdown_{label_text.replace(' ', '_')}_{option_text.replace(' ', '_')}.png"
         self.page.screenshot(path=screenshot_name, full_page=True)
         logger.error(f"Screenshot saved: {screenshot_name}")
         raise
