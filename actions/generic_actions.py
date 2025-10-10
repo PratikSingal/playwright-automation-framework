@@ -552,3 +552,42 @@ class GenericActions:
             raise
 
 
+    @allure.step("Click label by text with index in iframe: {iframe_locator} -> {label_text} at index {index}")
+    def click_by_label_at_index_in_iframe(
+        self,
+        iframe_locator: str,
+        label_text: str,
+        index: int = 0,
+        exact: bool = False
+    ) -> None:
+        """
+        Click label element by text at specific index inside iframe when multiple matches exist
+        
+        This is useful for custom dropdowns and forms where clicking the label is required.
+        The method specifically targets <label> elements, not just any text.
+        
+        Args:
+            iframe_locator: Iframe CSS selector (e.g., '#iframeView')
+            label_text: Label text to search for (e.g., 'New Account')
+            index: Which occurrence to click (0 = first, 1 = second, etc.)
+            exact: Exact text match or partial match
+        
+        Example:
+            # Click first "New Account" label
+            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=0)
+            
+            # Click second "New Account" label
+            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=1)
+            
+            # Click with exact match
+            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=0, exact=True)
+        """
+        try:
+            logger.info(f"Clicking label '{label_text}' at index {index} in iframe '{iframe_locator}'")
+            frame = self.page.frame_locator(iframe_locator)
+            frame.get_by_label(label_text, exact=exact).nth(index).click()
+            #frame.locator("label").filter(has_text=label_text).nth(index).click()
+            logger.success(f"✓ Clicked label '{label_text}' at index {index} in iframe")
+        except Exception as e:
+            logger.error(f"✗ Failed to click label '{label_text}' at index {index} in iframe: {str(e)}")
+            raise
