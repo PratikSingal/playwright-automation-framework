@@ -368,26 +368,53 @@ class GenericActions:
             logger.error(f"Failed to select custom dropdown by label in iframe: {str(e)}")
             raise
     
-    @allure.step("Select custom dropdown by label: {label} -> {option_text}")
+    @allure.step("Select custom dropdown by label: {label_text} -> {option_text}")
     def select_custom_dropdown_by_label(
-        self,
-        label: str,
-        option_text: str,
-        exact: bool=True
+        self, 
+        label_text: str, 
+        option_text: str, 
+        input_class: str = "PB_DropDownInput",
+        exact: bool = False
     ) -> None:
         """
         Select from custom dropdown (non-select tag) using label (no iframe)
+        Configurable for different input classes
         
         Args:
-            label: Label text of the dropdown field
+            label_text: Label text of the dropdown field
             option_text: Option text to select (from data file)
+            input_class: CSS class of the dropdown input (default: PB_DropDownInput)
             exact: Exact text match for option
         """
         try:
-            logger.info(f"Selecting '{option_text}' from custom dropdown with label '{label}'")
+            logger.info(f"Selecting '{option_text}' from dropdown with label '{label_text}' (input class: {input_class})")
             
-            # Click dropdown using label
-            self.page.get_by_label(label).click()
+            # Try multiple XPath strategies to find the dropdown input
+            dropdown = None
+            strategies = [
+                f'//label[contains(text(), "{label_text}")]/following-sibling::*//input[contains(@class, "{input_class}")]',
+                f'//label[contains(text(), "{label_text}")]/ancestor::tr[1]//input[contains(@class, "{input_class}")]',
+                f'//label[contains(text(), "{label_text}")]/..//input[contains(@class, "{input_class}")]',
+                f'//label[contains(text(), "{label_text}")]/parent::td/following-sibling::td//input[contains(@class, "{input_class}")]',
+            ]
+            
+            for i, xpath in enumerate(strategies, 1):
+                try:
+                    logger.debug(f"Trying strategy {i}: {xpath}")
+                    dropdown = self.page.locator(f'xpath={xpath}').first
+                    dropdown.wait_for(state="visible", timeout=3000)
+                    logger.info(f"✓ Found dropdown using strategy {i}")
+                    break
+                except Exception as e:
+                    logger.debug(f"Strategy {i} failed: {str(e)}")
+                    continue
+            
+            if dropdown is None:
+                raise Exception(f"Could not find dropdown with label '{label_text}' and input class '{input_class}'")
+            
+            # Click dropdown to open options list
+            dropdown.click()
+            logger.info(f"✓ Dropdown opened")
             
             # Wait for dropdown options to appear
             self.page.wait_for_timeout(500)
@@ -395,10 +422,16 @@ class GenericActions:
             # Select option by text
             self.page.get_by_text(option_text, exact=exact).click()
             
-            logger.success(f"Successfully selected '{option_text}' from '{label}' dropdown")
+            logger.success(f"✓ Successfully selected '{option_text}' from '{label_text}' dropdown")
+            
         except Exception as e:
-            logger.error(f"Failed to select custom dropdown by label: {str(e)}")
+            logger.error(f"✗ Failed to select custom dropdown by label: {str(e)}")
+            screenshot_name = f"error_dropdown_{label_text.replace(' ', '_')}_{option_text.replace(' ', '_')}.png"
+            self.page.screenshot(path=screenshot_name, full_page=True)
+            logger.error(f"Screenshot saved: {screenshot_name}")
             raise
+
+
     
     @allure.step("Select custom dropdown by placeholder in iframe: {placeholder} -> {option_text}")
     def select_custom_dropdown_by_placeholder_in_iframe(

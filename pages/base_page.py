@@ -72,13 +72,13 @@ class BasePage:
                 continue
             
             field_config = field_mapping[field_name]
-            locator = field_config['locator']
+            locator = field_config.get('locator', None)
             field_type = field_config['type'].lower()
             method = field_config.get('method', 'locator')  # Default to CSS locator
             exact = field_config.get('exact', False)  # For exact text matching
             
             # Handle dynamic locators (e.g., gender radio with {value})
-            if '{' in locator and isinstance(field_value, str):
+            if locator is not None and '{' in locator and isinstance(field_value, str):
                 locator = locator.format(value=field_value)
             
             try:
@@ -171,6 +171,7 @@ class BasePage:
         elif field_type == 'custom_dropdown':
             # Custom dropdown without iframe using label
             label = field_config.get('label')
+            input_class = field_config.get('input_class', 'PB_DropDownInput') 
             exact = field_config.get('exact', True)
             
             if label:
