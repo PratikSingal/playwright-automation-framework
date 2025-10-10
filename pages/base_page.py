@@ -178,6 +178,20 @@ class BasePage:
                 self.actions.select_custom_dropdown_by_label(label, str(value), exact)
             else:
                 raise ValueError(f"Custom dropdown must have 'label'")
+
+        elif field_type == 'dropdown_click':
+            # Simple dropdown - click and select with scroll support
+            exact = field_config.get('exact', False)
+            scroll_if_needed = field_config.get('scroll_if_needed', True)
+            dropdown_list_class = field_config.get('dropdown_list_class', 'PB_DropDownList')
+            
+            self.actions.select_dropdown_by_click(
+                locator, 
+                str(value), 
+                exact=exact,
+                scroll_if_needed=scroll_if_needed,
+                dropdown_list_class=dropdown_list_class
+            )
         
         # ==========================================
         # STANDARD SELECT TAG DROPDOWNS
