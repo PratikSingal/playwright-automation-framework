@@ -779,3 +779,16 @@ def select_dropdown_by_click_with_js_scroll(
         logger.error(f"✗ Failed: {str(e)}")
         self.page.screenshot(path="error_dropdown_scroll.png")
         raise
+
+    
+    @allure.step("Close any open dropdowns")
+    def close_open_dropdowns(self) -> None:
+        """Close any open dropdown by clicking outside"""
+        try:
+            logger.info("Closing any open dropdowns...")
+            # Click on a safe area (like body or a label) to close dropdowns
+            self.page.locator('body').click(position={'x': 10, 'y': 10})
+            self.page.wait_for_timeout(500)
+            logger.success("✓ Dropdowns closed")
+        except Exception as e:
+            logger.warning(f"Could not close dropdowns: {str(e)}")
