@@ -1,8 +1,8 @@
-    'account_entity': {
-        'locator': "//tr[@id='tdEntityCode']//input[@class='PB_DropDownInput']",
-        'type': 'dropdown_click',
-        'method': 'locator',
-        'exact': False,
-        'scroll_if_needed': True,  # ✅ Enable scrolling
-        'dropdown_list_class': 'PB_DropDownList'  # ✅ Configurable
-    },
+        'account_entity': {
+            'type': 'custom_dropdown_iframe',
+            'method': 'locator',
+            'iframe_locator': '#iframeView',
+            'label': 'Account Entity',
+            'input_class': 'PB_DropDownInput',
+            'exact': False
+        },

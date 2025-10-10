@@ -739,46 +739,46 @@ class GenericActions:
 
     
     @allure.step("Select dropdown with JS scroll: {locator} -> {option_text}")
-def select_dropdown_by_click_with_js_scroll(
-    self, 
-    locator: str, 
-    option_text: str, 
-    exact: bool = False
-) -> None:
-    """
-    Dropdown selection with JavaScript scrolling fallback
-    """
-    try:
-        logger.info(f"Selecting '{option_text}' from dropdown")
-        
-        # Click to open
-        element = self.page.locator(locator)
-        element.wait_for(state="visible", timeout=self.timeout)
-        element.click()
-        
-        logger.info(f"✓ Dropdown opened")
-        self.page.wait_for_timeout(500)
-        
-        # Find option
-        option = self.page.get_by_text(option_text, exact=exact)
-        
-        # Try regular click first
+    def select_dropdown_by_click_with_js_scroll(
+        self, 
+        locator: str, 
+        option_text: str, 
+        exact: bool = False
+    ) -> None:
+        """
+        Dropdown selection with JavaScript scrolling fallback
+        """
         try:
-            option.wait_for(state="visible", timeout=2000)
-            option.click()
-            logger.success(f"✓ Selected '{option_text}'")
-        except:
-            # Use JavaScript to scroll into view
-            logger.info(f"Using JavaScript scroll...")
-            option.evaluate("element => element.scrollIntoView({block: 'center', behavior: 'smooth'})")
-            self.page.wait_for_timeout(500)
-            option.click()
-            logger.success(f"✓ Selected '{option_text}' (JS scroll)")
+            logger.info(f"Selecting '{option_text}' from dropdown")
             
-    except Exception as e:
-        logger.error(f"✗ Failed: {str(e)}")
-        self.page.screenshot(path="error_dropdown_scroll.png")
-        raise
+            # Click to open
+            element = self.page.locator(locator)
+            element.wait_for(state="visible", timeout=self.timeout)
+            element.click()
+            
+            logger.info(f"✓ Dropdown opened")
+            self.page.wait_for_timeout(500)
+            
+            # Find option
+            option = self.page.get_by_text(option_text, exact=exact)
+            
+            # Try regular click first
+            try:
+                option.wait_for(state="visible", timeout=2000)
+                option.click()
+                logger.success(f"✓ Selected '{option_text}'")
+            except:
+                # Use JavaScript to scroll into view
+                logger.info(f"Using JavaScript scroll...")
+                option.evaluate("element => element.scrollIntoView({block: 'center', behavior: 'smooth'})")
+                self.page.wait_for_timeout(500)
+                option.click()
+                logger.success(f"✓ Selected '{option_text}' (JS scroll)")
+                
+        except Exception as e:
+            logger.error(f"✗ Failed: {str(e)}")
+            self.page.screenshot(path="error_dropdown_scroll.png")
+            raise
 
     
     @allure.step("Close any open dropdowns")
@@ -792,3 +792,84 @@ def select_dropdown_by_click_with_js_scroll(
             logger.success("✓ Dropdowns closed")
         except Exception as e:
             logger.warning(f"Could not close dropdowns: {str(e)}")
+
+
+    @allure.step("Select dropdown in iframe by label: {label_text} -> {option_text}")
+    def select_dropdown_in_iframe_by_label(
+        self,
+        iframe_locator: str,
+        label_text: str,
+        option_text: str,
+        input_class: str = "PB_DropDownInput",
+        option_index: int = 0,
+        exact: bool = False
+    ) -> None:
+        """
+        Generic method to select dropdown in iframe when label and input are in separate <td> elements
+        
+        HTML Structure:
+        <iframe id="iframeView">
+        <tr>
+            <td><label>Account Entity</label></td>
+            <td><input class="PB_DropDownInput" /></td>
+        </tr>
+        </iframe>
+        
+        Args:
+            iframe_locator: Iframe CSS selector (e.g., '#iframeView')
+            label_text: Label text to locate the dropdown
+            option_text: Option text to select
+            input_class: CSS class of dropdown input (default: PB_DropDownInput)
+            option_index: Which occurrence if multiple options have same text (0 = first)
+            exact: Use exact text match for option selection
+        
+        Examples:
+            # Select account entity
+            actions.select_dropdown_in_iframe_by_label("#iframeView", "Account Entity", "USPB")
+            
+            # Select business group
+            actions.select_dropdown_in_iframe_by_label("#iframeView", "Business Group", "PBR")
+            
+            # Select with custom input class
+            actions.select_dropdown_in_iframe_by_label(
+                "#iframeView", 
+                "Country", 
+                "USA", 
+                input_class="CustomDropdown"
+            )
+        """
+        try:
+            logger.info(f"Selecting '{option_text}' from dropdown with label '{label_text}' in iframe")
+            
+            # Step 1: Access the iframe
+            frame = self.page.frame_locator(iframe_locator)
+            
+            # Step 2: Build XPath to find dropdown input next to label
+            # XPath: Find label → go to parent <td> → go to next sibling <td> → find input
+            xpath = f'//label[contains(text(), "{label_text}")]/parent::td/following-sibling::td//input[contains(@class, "{input_class}")]'
+            
+            logger.info(f"Opening dropdown using XPath...")
+            dropdown = frame.locator(f'xpath={xpath}')
+            dropdown.wait_for(state="visible", timeout=self.timeout)
+            
+            # Step 3: Click dropdown to open
+            dropdown.click()
+            logger.info(f"✓ Dropdown opened")
+            
+            # Step 4: Wait for dropdown options to appear
+            self.page.wait_for_timeout(500)
+            
+            # Step 5: Select option by text
+            logger.info(f"Selecting option '{option_text}' at index {option_index}...")
+            option = frame.get_by_text(option_text, exact=exact).nth(option_index)
+            option.wait_for(state="visible", timeout=self.timeout)
+            option.click()
+            
+            logger.success(f"✓ Successfully selected '{option_text}' from '{label_text}' dropdown")
+            
+        except Exception as e:
+            logger.error(f"✗ Failed to select dropdown '{label_text}': {str(e)}")
+            screenshot_name = f"error_iframe_dropdown_{label_text.replace(' ', '_')}_{option_text.replace(' ', '_')}.png"
+            self.page.screenshot(path=screenshot_name, full_page=True)
+            logger.error(f"Screenshot saved: {screenshot_name}")
+            raise

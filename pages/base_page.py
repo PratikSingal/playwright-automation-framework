@@ -150,7 +150,7 @@ class BasePage:
         # ==========================================
         # CUSTOM DROPDOWNS (NON-SELECT TAG)
         # ==========================================
-        if field_type == 'custom_dropdown_iframe':
+        if field_type == 'custom_dropdown_iframe_1':
             # Custom dropdown inside iframe using label
             iframe_loc = field_config.get('iframe_locator')
             label = field_config.get('label')
@@ -193,6 +193,26 @@ class BasePage:
                 dropdown_list_class=dropdown_list_class
             )
         
+        elif field_type == 'custom_dropdown_iframe':
+            # Generic dropdown in iframe using label
+            iframe_loc = field_config.get('iframe_locator')
+            label = field_config.get('label')
+            input_class = field_config.get('input_class', 'PB_DropDownInput')
+            option_index = field_config.get('option_index', 0)
+            exact = field_config.get('exact', False)
+            
+            if label:
+                self.actions.select_dropdown_in_iframe_by_label(
+                    iframe_loc,
+                    label,
+                    str(value),
+                    input_class,
+                    option_index,
+                    exact
+                )
+            else:
+                raise ValueError(f"Custom dropdown in iframe must have 'label'")
+
         # ==========================================
         # STANDARD SELECT TAG DROPDOWNS
         # ==========================================
