@@ -665,3 +665,117 @@ class GenericActions:
             self.page.screenshot(path=screenshot_name, full_page=True)
             logger.error(f"Screenshot saved: {screenshot_name}")
             raise
+
+
+    @allure.step("Select dropdown by clicking input: {locator} -> {option_text}")
+    def select_dropdown_by_click(
+        self, 
+        locator: str, 
+        option_text: str, 
+        exact: bool = False,
+        scroll_if_needed: bool = True,
+        dropdown_list_class: str = "PB_DropDownList"
+    ) -> None:
+        """
+        Simple dropdown selection - click input, scroll if needed, then select option
+        Works with any custom dropdown pattern
+        
+        Args:
+            locator: XPath/CSS locator for the dropdown input
+            option_text: Option text to select
+            exact: Exact text match for option
+            scroll_if_needed: Whether to scroll within dropdown if option not visible
+            dropdown_list_class: CSS class of the dropdown list container (for scrolling)
+        """
+        try:
+            logger.info(f"Selecting '{option_text}' from dropdown at '{locator}'")
+            
+            # Step 1: Click the input to open dropdown
+            element = self.page.locator(locator)
+            element.wait_for(state="visible", timeout=self.timeout)
+            element.click()
+            
+            logger.info(f"✓ Dropdown opened")
+            
+            # Step 2: Wait for dropdown list to appear
+            self.page.wait_for_timeout(500)
+            
+            # Step 3: Try to find and click the option
+            try:
+                # First attempt - option might be visible already
+                option = self.page.get_by_text(option_text, exact=exact)
+                option.wait_for(state="visible", timeout=2000)
+                option.click()
+                logger.success(f"✓ Selected '{option_text}' (visible immediately)")
+                
+            except:
+                # Option not visible - need to scroll in dropdown
+                if scroll_if_needed:
+                    logger.info(f"Option not immediately visible, scrolling in dropdown...")
+                    
+                    # Find the dropdown list container
+                    dropdown_list = self.page.locator(f'.{dropdown_list_class}')
+                    dropdown_list.wait_for(state="visible", timeout=2000)
+                    
+                    # Scroll to the option within the dropdown list
+                    option = dropdown_list.get_by_text(option_text, exact=exact)
+                    option.scroll_into_view_if_needed()
+                    
+                    # Wait a bit after scroll
+                    self.page.wait_for_timeout(300)
+                    
+                    # Click the option
+                    option.click()
+                    logger.success(f"✓ Selected '{option_text}' (after scrolling)")
+                else:
+                    raise Exception(f"Option '{option_text}' not found and scroll disabled")
+            
+        except Exception as e:
+            logger.error(f"✗ Failed to select dropdown: {str(e)}")
+            screenshot_name = f"error_dropdown_{option_text.replace(' ', '_')}.png"
+            self.page.screenshot(path=screenshot_name, full_page=True)
+            logger.error(f"Screenshot saved: {screenshot_name}")
+            raise
+
+    
+    @allure.step("Select dropdown with JS scroll: {locator} -> {option_text}")
+def select_dropdown_by_click_with_js_scroll(
+    self, 
+    locator: str, 
+    option_text: str, 
+    exact: bool = False
+) -> None:
+    """
+    Dropdown selection with JavaScript scrolling fallback
+    """
+    try:
+        logger.info(f"Selecting '{option_text}' from dropdown")
+        
+        # Click to open
+        element = self.page.locator(locator)
+        element.wait_for(state="visible", timeout=self.timeout)
+        element.click()
+        
+        logger.info(f"✓ Dropdown opened")
+        self.page.wait_for_timeout(500)
+        
+        # Find option
+        option = self.page.get_by_text(option_text, exact=exact)
+        
+        # Try regular click first
+        try:
+            option.wait_for(state="visible", timeout=2000)
+            option.click()
+            logger.success(f"✓ Selected '{option_text}'")
+        except:
+            # Use JavaScript to scroll into view
+            logger.info(f"Using JavaScript scroll...")
+            option.evaluate("element => element.scrollIntoView({block: 'center', behavior: 'smooth'})")
+            self.page.wait_for_timeout(500)
+            option.click()
+            logger.success(f"✓ Selected '{option_text}' (JS scroll)")
+            
+    except Exception as e:
+        logger.error(f"✗ Failed: {str(e)}")
+        self.page.screenshot(path="error_dropdown_scroll.png")
+        raise

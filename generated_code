@@ -1,3 +1,8 @@
-actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=0, exact=False)
-
-actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=1, exact=False)
+    'account_entity': {
+        'locator': "//tr[@id='tdEntityCode']//input[@class='PB_DropDownInput']",
+        'type': 'dropdown_click',
+        'method': 'locator',
+        'exact': False,
+        'scroll_if_needed': True,  # ✅ Enable scrolling
+        'dropdown_list_class': 'PB_DropDownList'  # ✅ Configurable
+    },
