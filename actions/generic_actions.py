@@ -518,76 +518,123 @@ class GenericActions:
             logger.error(f"Failed to click by text '{text}' at index {index}: {str(e)}")
             raise
 
-    @allure.step("Click by text with index in iframe: {iframe_locator} -> {text} at index {index}")
-    def click_by_text_at_index_in_iframe(
-        self, 
-        iframe_locator: str, 
-        text: str, 
-        index: int = 0, 
+
+    @allure.step("Select SumoSelect dropdown: {dropdown_name} -> {option_text}")
+    def select_sumo_dropdown(
+        self,
+        dropdown_name: str,
+        option_text: str,
+        option_index: int = 0,
         exact: bool = False
     ) -> None:
         """
-        Click element by text at specific index inside iframe when multiple matches exist
+        Generic method to select option from SumoSelect custom dropdown (no iframe)
         
         Args:
-            iframe_locator: Iframe CSS selector (e.g., '#iframeView')
-            text: Text to search for (e.g., 'New Account')
-            index: Which occurrence to click (0 = first, 1 = second, etc.)
-            exact: Exact text match or partial match
+            dropdown_name: Name attribute of the select element
+            option_text: Option text to select
+            option_index: Which occurrence if multiple options have same text
+            exact: Use exact text match for option selection
         
-        Example:
-            # Click first "New Account"
-            actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=0)
-            
-            # Click second "New Account"
-            actions.click_by_text_at_index_in_iframe("#iframeView", "New Account", index=1)
+        Examples:
+            actions.select_sumo_dropdown("accountType", "New Account")
+            actions.select_sumo_dropdown("country", "United States")
+            actions.select_sumo_dropdown("status", "Active", option_index=1)
         """
         try:
-            logger.info(f"Clicking text '{text}' at index {index} in iframe '{iframe_locator}'")
-            frame = self.page.frame_locator(iframe_locator)
-            frame.get_by_text(text, exact=exact).nth(index).click()
-            logger.success(f"✓ Clicked '{text}' at index {index} in iframe")
+            logger.info(f"Selecting '{option_text}' from SumoSelect dropdown '{dropdown_name}'")
+            
+            # Step 1: Click the SumoSelect container to open dropdown
+            logger.info(f"Opening SumoSelect dropdown '{dropdown_name}'...")
+            sumo_select = self.page.locator(f".SumoSelect.sumo_{dropdown_name}")
+            sumo_select.wait_for(state="visible", timeout=self.timeout)
+            sumo_select.click()
+            
+            # Wait for dropdown to open
+            self.page.wait_for_timeout(800)
+            
+            # Step 2: Wait for options list
+            self.page.locator("ul.options").wait_for(state="visible", timeout=self.timeout)
+            
+            # Step 3: Click the option
+            logger.info(f"Selecting option '{option_text}' at index {option_index}...")
+            option = self.page.locator("label").filter(has_text=option_text).nth(option_index)
+            option.wait_for(state="visible", timeout=self.timeout)
+            option.click()
+            
+            logger.success(f"✓ Selected '{option_text}' from '{dropdown_name}' dropdown")
+            
         except Exception as e:
-            logger.error(f"✗ Failed to click text '{text}' at index {index} in iframe: {str(e)}")
+            logger.error(f"✗ Failed to select option: {str(e)}")
+            self.page.screenshot(path=f"error_sumo_{dropdown_name}_{option_text.replace(' ', '_')}.png", full_page=True)
             raise
 
-
-    @allure.step("Click label by text with index in iframe: {iframe_locator} -> {label_text} at index {index}")
-    def click_by_label_at_index_in_iframe(
+    @allure.step("Select SumoSelect dropdown in iframe: {dropdown_name} -> {option_text} at index {option_index}")
+    def select_sumo_dropdown_in_iframe(
         self,
         iframe_locator: str,
-        label_text: str,
-        index: int = 0,
+        dropdown_name: str,
+        option_text: str,
+        option_index: int = 0,
         exact: bool = False
     ) -> None:
         """
-        Click label element by text at specific index inside iframe when multiple matches exist
+        Generic method to select option from SumoSelect custom dropdown inside iframe
         
-        This is useful for custom dropdowns and forms where clicking the label is required.
-        The method specifically targets <label> elements, not just any text.
+        This method handles the two-step process:
+        1. Click the SumoSelect container to open the dropdown
+        2. Click the desired option label
         
         Args:
             iframe_locator: Iframe CSS selector (e.g., '#iframeView')
-            label_text: Label text to search for (e.g., 'New Account')
-            index: Which occurrence to click (0 = first, 1 = second, etc.)
-            exact: Exact text match or partial match
+            dropdown_name: Name attribute of the select element (e.g., 'accountType', 'country', 'status')
+            option_text: Option text to select (e.g., 'New Account', 'USA', 'Active')
+            option_index: Which occurrence if multiple options have same text (0 = first, 1 = second, etc.)
+            exact: Use exact text match for option selection
         
-        Example:
-            # Click first "New Account" label
-            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=0)
+        Examples:
+            # Select account type
+            actions.select_sumo_dropdown_in_iframe("#iframeView", "accountType", "New Account")
             
-            # Click second "New Account" label
-            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=1)
+            # Select country
+            actions.select_sumo_dropdown_in_iframe("#iframeView", "country", "United States")
             
-            # Click with exact match
-            actions.click_by_label_at_index_in_iframe("#iframeView", "New Account", index=0, exact=True)
+            # Select second occurrence of same text
+            actions.select_sumo_dropdown_in_iframe("#iframeView", "accountType", "New Account", option_index=1)
+            
+            # Exact match
+            actions.select_sumo_dropdown_in_iframe("#iframeView", "status", "Active", exact=True)
         """
         try:
-            logger.info(f"Clicking label '{label_text}' at index {index} in iframe '{iframe_locator}'")
+            logger.info(f"Selecting '{option_text}' from SumoSelect dropdown '{dropdown_name}' in iframe")
             frame = self.page.frame_locator(iframe_locator)
-            frame.get_by_label(label_text, exact=exact).nth(index).click()
-            #frame.locator("label").filter(has_text=label_text).nth(index).click()
-            logger.success(f"✓ Clicked label '{label_text}' at index {index} in iframe")
+            
+            # Step 1: Click the SumoSelect container to open dropdown
+            logger.info(f"Step 1: Opening SumoSelect dropdown '{dropdown_name}'...")
+            sumo_select = frame.locator(f".SumoSelect.sumo_{dropdown_name}")
+            sumo_select.wait_for(state="visible", timeout=self.timeout)
+            sumo_select.click()
+            
+            # Wait for dropdown to open
+            self.page.wait_for_timeout(800)
+            logger.info("✓ Dropdown opened")
+            
+            # Step 2: Wait for options list to be visible
+            logger.info("Step 2: Waiting for options to appear...")
+            frame.locator("ul.options").wait_for(state="visible", timeout=self.timeout)
+            
+            # Step 3: Click the desired option label
+            logger.info(f"Step 3: Selecting option '{option_text}' at index {option_index}...")
+            option = frame.locator("label").filter(has_text=option_text).nth(option_index)
+            option.wait_for(state="visible", timeout=self.timeout)
+            option.scroll_into_view_if_needed()
+            option.click()
+            
+            logger.success(f"✓ Successfully selected '{option_text}' from '{dropdown_name}' dropdown")
+            
         except Exception as e:
-            logger.error(f"✗ Failed to click label '{label_text}' at index {index} in iframe: {str(e)}")
+            logger.error(f"✗ Failed to select SumoSelect option '{option_text}' from '{dropdown_name}': {str(e)}")
+            screenshot_name = f"error_sumo_{dropdown_name}_{option_text.replace(' ', '_')}_{option_index}.png"
+            self.page.screenshot(path=screenshot_name, full_page=True)
+            logger.error(f"Screenshot saved: {screenshot_name}")
             raise
