@@ -1,8 +1,39 @@
-        'account_entity': {
-            'type': 'custom_dropdown_iframe',
-            'method': 'locator',
-            'iframe_locator': '#iframeView',
-            'label': 'Account Entity',
-            'input_class': 'PB_DropDownInput',
-            'exact': False
-        },
+@allure.step("Fill textbox: {locator} with value: {value}")
+def fill_textbox(self, locator: str, value: str, clear_first: bool=True, iframe_locator: str=None) -> None:
+    """
+    Fill a textbox with the given value
+    
+    Args:
+        locator: CSS/XPath locator for the textbox
+        value: Value to fill
+        clear_first: Clear existing text before filling (default: True)
+        iframe_locator: Optional iframe locator (e.g., '#iframeView'). If None, works on main page
+    
+    Examples:
+        # Without iframe (main page)
+        actions.fill_textbox("#username", "john.doe")
+        
+        # With iframe
+        actions.fill_textbox("#username", "john.doe", iframe_locator="#iframeView")
+    """
+    try:
+        logger.info(f"Filling textbox '{locator}' with value '{value}'" + 
+                   (f" in iframe '{iframe_locator}'" if iframe_locator else ""))
+        
+        # Choose context: iframe or main page
+        if iframe_locator:
+            frame = self.page.frame_locator(iframe_locator)
+            element = frame.locator(locator)
+        else:
+            element = self.page.locator(locator)
+        
+        element.wait_for(state="visible", timeout=self.timeout)
+        
+        if clear_first:
+            element.clear()
+        
+        element.fill(value)
+        logger.success(f"Successfully filled textbox '{locator}'")
+    except Exception as e:
+        logger.error(f"Failed to fill textbox '{locator}': {str(e)}")
+        raise
