@@ -550,8 +550,6 @@ class GenericActions:
             sumo_select.wait_for(state="visible", timeout=self.timeout)
             sumo_select.click()
             
-            # Wait for dropdown to open
-            self.page.wait_for_timeout(800)
             
             # Step 2: Wait for options list
             self.page.locator("ul.options").wait_for(state="visible", timeout=self.timeout)
@@ -615,18 +613,14 @@ class GenericActions:
             sumo_select.wait_for(state="visible", timeout=self.timeout)
             sumo_select.click()
             
-            # Wait for dropdown to open
-            self.page.wait_for_timeout(800)
-            logger.info("✓ Dropdown opened")
             
             # Step 2: Wait for options list to be visible
             logger.info("Step 2: Waiting for options to appear...")
-            frame.locator("ul.options").wait_for(state="visible", timeout=self.timeout)
+            frame.locator(f".SumoSelect.sumo_{dropdown_name} ul.options").wait_for(state="visible")
             
             # Step 3: Click the desired option label
             logger.info(f"Step 3: Selecting option '{option_text}' at index {option_index}...")
-            option = frame.locator("label").filter(has_text=option_text).nth(option_index)
-            option.wait_for(state="visible", timeout=self.timeout)
+            option = frame.locator(f".SumoSelect.sumo_{dropdown_name} label").filter(has_text=option_text).nth(option_index)            option.wait_for(state="visible", timeout=self.timeout)
             option.scroll_into_view_if_needed()
             option.click()
             
