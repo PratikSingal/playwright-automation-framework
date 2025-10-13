@@ -1,5 +1,40 @@
 
+from functools import wraps
+from typing import Callable, Any
 
+def iframe_aware(func: Callable) -> Callable:
+    """
+    Decorator to make methods iframe-aware.
+    Automatically handles iframe context switching.
+    
+    Usage:
+        @iframe_aware
+        def method_name(self, arg1, arg2, iframe_locator: str = None):
+            # Method code here - self.page will automatically point to correct context
+    """
+    @wraps(func)
+    def wrapper(self, *args, iframe_locator: str = None, **kwargs) -> Any:
+        # Get the correct context (page or iframe)
+        if iframe_locator:
+            context = self.page.frame_locator(iframe_locator)
+            logger.debug(f"Operating in iframe: {iframe_locator}")
+        else:
+            context = self.page
+            logger.debug("Operating on main page")
+        
+        # Temporarily replace self.page with the context
+        original_page = self.page
+        self.page = context
+        
+        try:
+            # Execute the original method
+            result = func(self, *args, **kwargs)
+            return result
+        finally:
+            # Always restore the original page context
+            self.page = original_page
+    
+    return wrapper
 from functools import wraps
 
 def iframe_aware(method):
