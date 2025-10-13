@@ -1,3 +1,118 @@
+
+
+def _fill_by_role(self, field_type: str, locator: str, value: Any, exact: bool, iframe_locator: str = None) -> None:
+    """Fill field using get_by_role"""
+    
+    if field_type == 'button':
+        if bool(value):
+            self.actions.click_by_role('button', name=locator, exact=exact, iframe_locator=iframe_locator)
+    
+    elif field_type == 'link':
+        if bool(value):
+            self.actions.click_by_role('link', name=locator, exact=exact, iframe_locator=iframe_locator)
+    
+    elif field_type == 'textbox':
+        # Use decorator-aware method
+        self.actions.fill_textbox_by_role(locator, str(value), exact=exact, iframe_locator=iframe_locator)
+    
+    elif field_type == 'checkbox':
+        # ✅ NEW: Use decorator-aware checkbox method
+        self.actions.check_checkbox_by_role(locator, check=bool(value), exact=exact, iframe_locator=iframe_locator)
+    
+    elif field_type == 'radio':
+        # ✅ NEW: Use decorator-aware radio method
+        if bool(value):
+            self.actions.select_radio_by_role(locator, exact=exact, iframe_locator=iframe_locator)
+    
+    else:
+        logger.warning(f"Unknown field type '{field_type}' for get_by_role method")
+@iframe_aware
+@allure.step("Select radio button by role: {name}")
+def select_radio_by_role(
+    self, 
+    name: str,
+    exact: bool = False,
+    iframe_locator: str = None
+) -> None:
+    """
+    Select radio button using accessibility role with optional iframe support
+    
+    Args:
+        name: Accessible name of the radio button (from aria-label, label, or associated label)
+        exact: Exact match for the name
+        iframe_locator: Optional iframe CSS selector (e.g., '#iframeView')
+    
+    Examples:
+        # Select radio on main page
+        actions.select_radio_by_role("Male")
+        
+        # Select radio in iframe
+        actions.select_radio_by_role("Credit Card", iframe_locator="#iframeView")
+    """
+    try:
+        logger.info(f"Selecting radio button '{name}'")
+        
+        element = self.page.get_by_role("radio", name=name, exact=exact)
+        element.wait_for(state="visible", timeout=self.timeout)
+        
+        if not element.is_checked():
+            element.check()
+        
+        logger.success(f"Successfully selected radio button '{name}'")
+        
+    except Exception as e:
+        logger.error(f"Failed to select radio button '{name}': {str(e)}")
+        raise
+
+@iframe_aware
+@allure.step("Check/Uncheck checkbox by role: {name}")
+def check_checkbox_by_role(
+    self, 
+    name: str, 
+    check: bool = True,
+    exact: bool = False,
+    iframe_locator: str = None
+) -> None:
+    """
+    Check or uncheck checkbox using accessibility role with optional iframe support
+    
+    Args:
+        name: Accessible name of the checkbox (from aria-label, label, or associated label)
+        check: True to check, False to uncheck
+        exact: Exact match for the name
+        iframe_locator: Optional iframe CSS selector (e.g., '#iframeView')
+    
+    Examples:
+        # Check checkbox on main page
+        actions.check_checkbox_by_role("I agree to terms", check=True)
+        
+        # Uncheck checkbox on main page
+        actions.check_checkbox_by_role("Subscribe to newsletter", check=False)
+        
+        # Check checkbox in iframe
+        actions.check_checkbox_by_role("Active", check=True, iframe_locator="#iframeView")
+        
+        # Uncheck checkbox in iframe
+        actions.check_checkbox_by_role("Active", check=False, iframe_locator="#iframeView")
+    """
+    try:
+        action = "Checking" if check else "Unchecking"
+        logger.info(f"{action} checkbox '{name}'")
+        
+        element = self.page.get_by_role("checkbox", name=name, exact=exact)
+        element.wait_for(state="visible", timeout=self.timeout)
+        
+        if check:
+            element.check()
+        else:
+            element.uncheck()
+        
+        logger.success(f"Successfully {action.lower()}ed checkbox '{name}'")
+        
+    except Exception as e:
+        logger.error(f"Failed to {action.lower()} checkbox '{name}': {str(e)}")
+        raise
+
 @iframe_aware
 @allure.step("Fill textbox by role: {name}")
 def fill_textbox_by_role(
