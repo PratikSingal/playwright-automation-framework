@@ -1,3 +1,57 @@
+
+
+from functools import wraps
+
+def iframe_aware(method):
+    """Decorator to make methods iframe-aware"""
+    @wraps(method)
+    def wrapper(self, *args, iframe_locator=None, **kwargs):
+        # Save original page context
+        original_page = self.page
+        
+        # Switch to iframe if provided
+        if iframe_locator:
+            self.page = self.page.frame_locator(iframe_locator)
+        
+        try:
+            # Execute the original method
+            result = method(self, *args, **kwargs)
+            return result
+        finally:
+            # Restore original context
+            self.page = original_page
+    
+    return wrapper
+
+class GenericActions:
+    
+    def __init__(self, page: Page):
+        self.page = page
+        self.timeout = 30000
+    
+    @iframe_aware
+    @allure.step("Fill by label: {label}")
+    def fill_by_label(self, label: str, value: str, exact: bool = False) -> None:
+        """Fill input using label"""
+        try:
+            self.page.get_by_label(label, exact=exact).fill(value)
+            logger.success(f"Filled '{label}'")
+        except Exception as e:
+            logger.error(f"Failed: {str(e)}")
+            raise
+    
+    @iframe_aware
+    @allure.step("Click button: {name}")
+    def click_button(self, name: str, exact: bool = False) -> None:
+        """Click button"""
+        try:
+            self.page.get_by_role("button", name=name, exact=exact).click()
+            logger.success(f"Clicked '{name}'")
+        except Exception as e:
+            logger.error(f"Failed: {str(e)}")
+            raise
+
+
 @allure.step("Fill textbox by role: {name}")
 def fill_textbox_by_role(
     self, 
