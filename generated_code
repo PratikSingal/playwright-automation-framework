@@ -1,4 +1,28 @@
-
+@iframe_aware
+@allure.step("Fill textbox by role: {name}")
+def fill_textbox_by_role(
+    self, 
+    name: str, 
+    value: str, 
+    exact: bool = False,
+    iframe_locator: str = None
+) -> None:
+    """
+    Fill textbox using accessibility role with optional iframe support
+    
+    Args:
+        name: Accessible name of the textbox
+        value: Value to fill
+        exact: Exact match for the name
+        iframe_locator: Optional iframe CSS selector
+    """
+    try:
+        logger.info(f"Filling textbox '{name}' with value '{value}'")
+        self.page.get_by_role("textbox", name=name, exact=exact).fill(value)
+        logger.success(f"Successfully filled textbox '{name}'")
+    except Exception as e:
+        logger.error(f"Failed to fill textbox '{name}': {str(e)}")
+        raise
 from functools import wraps
 from typing import Callable, Any
 
