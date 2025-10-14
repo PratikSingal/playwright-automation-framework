@@ -1,3 +1,107 @@
+
+@pytest.fixture(scope="function")
+def context(browser: Browser, config_manager, request) -> BrowserContext:
+    """
+    Create a new browser context for each test
+    Browser context is like an incognito window - isolated cookies, cache, etc.
+    """
+    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
+    
+    logger.info("Creating new browser context")
+    
+    # Context options
+    context_options = {
+        'viewport': viewport,
+        'ignore_https_errors': True,
+        'java_script_enabled': True,
+        'accept_downloads': True
+    }
+    
+    # Create unique video directory for this test to avoid conflicts
+    base_video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
+    base_video_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Record existing video files before creating context
+    existing_videos = set(base_video_dir.glob('*.webm'))
+    
+    context_options['record_video_dir'] = str(base_video_dir)
+    context_options['record_video_size'] = viewport
+    
+    context = browser.new_context(**context_options)
+    
+    # Enable tracing for debugging
+    if config_manager.get('browser.trace_on_failure', True):
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    
+    logger.success("Browser context created")
+    
+    yield context
+    
+    # Check if test failed
+    test_failed = False
+    if hasattr(request.node, 'rep_call'):
+        test_failed = request.node.rep_call.failed
+    
+    # Stop tracing before closing pages
+    if config_manager.get('browser.trace_on_failure', True):
+        try:
+            context.tracing.stop()
+        except Exception as e:
+            logger.warning(f"Failed to stop tracing: {str(e)}")
+    
+    # Close all pages first
+    for page in context.pages:
+        try:
+            page.close()
+        except Exception as e:
+            logger.debug(f"Error closing page: {str(e)}")
+    
+    # Close context to finalize videos
+    logger.info("Closing browser context")
+    context.close()
+    
+    # Wait for videos to be written to disk
+    import time
+    time.sleep(1)
+    
+    # Find NEW video files created by this context
+    current_videos = set(base_video_dir.glob('*.webm'))
+    new_videos = current_videos - existing_videos
+    
+    if new_videos:
+        logger.info(f"Found {len(new_videos)} new video file(s) for this test")
+        
+        if test_failed:
+            logger.warning("Test failed - keeping and attaching video")
+            
+            try:
+                for video_file in new_videos:
+                    if video_file.exists():
+                        # Attach to Allure report
+                        allure.attach.file(
+                            str(video_file),
+                            name=f"Test Video - {request.node.name}",
+                            attachment_type=allure.attachment_type.WEBM,
+                            extension=".webm"
+                        )
+                        logger.info(f"Video attached to Allure: {video_file.name}")
+            except Exception as e:
+                logger.error(f"Failed to attach video: {str(e)}")
+        else:
+            logger.info("Test passed - deleting video")
+            
+            try:
+                for video_file in new_videos:
+                    if video_file.exists():
+                        video_file.unlink()
+                        logger.debug(f"Deleted video: {video_file.name}")
+                logger.info(f"Deleted {len(new_videos)} video file(s)")
+            except Exception as e:
+                logger.debug(f"Error deleting videos: {str(e)}")
+    else:
+        logger.debug("No new video files found for this test")
+
+
 @pytest.fixture(scope="function")
 def context(browser: Browser, config_manager, request) -> BrowserContext:
     """
