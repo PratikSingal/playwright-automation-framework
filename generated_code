@@ -1,311 +1,141 @@
-
-
-def _fill_by_role(self, field_type: str, locator: str, value: Any, exact: bool, iframe_locator: str = None) -> None:
-    """Fill field using get_by_role"""
+@pytest.fixture(scope="function")
+def context(browser: Browser, config_manager, request) -> BrowserContext:
+    """
+    Create a new browser context for each test
+    Browser context is like an incognito window - isolated cookies, cache, etc.
+    """
+    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
     
-    if field_type == 'button':
-        if bool(value):
-            self.actions.click_by_role('button', name=locator, exact=exact, iframe_locator=iframe_locator)
+    logger.info("Creating new browser context")
     
-    elif field_type == 'link':
-        if bool(value):
-            self.actions.click_by_role('link', name=locator, exact=exact, iframe_locator=iframe_locator)
+    # Context options
+    context_options = {
+        'viewport': viewport,
+        'ignore_https_errors': True,
+        'java_script_enabled': True,
+        'accept_downloads': True
+    }
     
-    elif field_type == 'textbox':
-        # Use decorator-aware method
-        self.actions.fill_textbox_by_role(locator, str(value), exact=exact, iframe_locator=iframe_locator)
+    # Always enable video recording to capture it
+    video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
+    video_dir.mkdir(parents=True, exist_ok=True)
+    context_options['record_video_dir'] = str(video_dir)
+    context_options['record_video_size'] = viewport
     
-    elif field_type == 'checkbox':
-        # ✅ NEW: Use decorator-aware checkbox method
-        self.actions.check_checkbox_by_role(locator, check=bool(value), exact=exact, iframe_locator=iframe_locator)
+    context = browser.new_context(**context_options)
     
-    elif field_type == 'radio':
-        # ✅ NEW: Use decorator-aware radio method
-        if bool(value):
-            self.actions.select_radio_by_role(locator, exact=exact, iframe_locator=iframe_locator)
+    # Enable tracing for debugging
+    if config_manager.get('browser.trace_on_failure', True):
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
     
+    logger.success("Browser context created")
+    
+    yield context
+    
+    # Check if test failed
+    test_failed = False
+    if hasattr(request.node, 'rep_call'):
+        test_failed = request.node.rep_call.failed
+    
+    # Stop tracing before closing pages
+    if config_manager.get('browser.trace_on_failure', True):
+        try:
+            context.tracing.stop()
+        except Exception as e:
+            logger.warning(f"Failed to stop tracing: {str(e)}")
+    
+    # Handle video based on test result
+    if test_failed:
+        logger.warning("Test failed - keeping and attaching video")
+        
+        # Attach video to Allure report
+        try:
+            for page in context.pages:
+                if page.video:
+                    # Close page to finalize video
+                    page.close()
+                    
+                    # Get video path after closing
+                    video_path = page.video.path()
+                    
+                    if video_path:
+                        video_file = Path(video_path)
+                        
+                        # Wait briefly for video file to be written
+                        import time
+                        max_wait = 5  # seconds
+                        wait_interval = 0.2
+                        elapsed = 0
+                        
+                        while not video_file.exists() and elapsed < max_wait:
+                            time.sleep(wait_interval)
+                            elapsed += wait_interval
+                        
+                        if video_file.exists():
+                            # Attach to Allure report
+                            allure.attach.file(
+                                str(video_file),
+                                name=f"Test Video - {request.node.name}",
+                                attachment_type=allure.attachment_type.WEBM,
+                                extension=".webm"
+                            )
+                            logger.info(f"Video attached to Allure: {video_path}")
+                        else:
+                            logger.warning(f"Video file not found: {video_path}")
+                else:
+                    page.close()
+        except Exception as e:
+            logger.error(f"Failed to attach video: {str(e)}")
+            # Close any remaining pages
+            for page in context.pages:
+                try:
+                    page.close()
+                except:
+                    pass
     else:
-        logger.warning(f"Unknown field type '{field_type}' for get_by_role method")
-@iframe_aware
-@allure.step("Select radio button by role: {name}")
-def select_radio_by_role(
-    self, 
-    name: str,
-    exact: bool = False,
-    iframe_locator: str = None
-) -> None:
-    """
-    Select radio button using accessibility role with optional iframe support
-    
-    Args:
-        name: Accessible name of the radio button (from aria-label, label, or associated label)
-        exact: Exact match for the name
-        iframe_locator: Optional iframe CSS selector (e.g., '#iframeView')
-    
-    Examples:
-        # Select radio on main page
-        actions.select_radio_by_role("Male")
+        logger.info("Test passed - deleting video")
         
-        # Select radio in iframe
-        actions.select_radio_by_role("Credit Card", iframe_locator="#iframeView")
-    """
-    try:
-        logger.info(f"Selecting radio button '{name}'")
-        
-        element = self.page.get_by_role("radio", name=name, exact=exact)
-        element.wait_for(state="visible", timeout=self.timeout)
-        
-        if not element.is_checked():
-            element.check()
-        
-        logger.success(f"Successfully selected radio button '{name}'")
-        
-    except Exception as e:
-        logger.error(f"Failed to select radio button '{name}': {str(e)}")
-        raise
-
-@iframe_aware
-@allure.step("Check/Uncheck checkbox by role: {name}")
-def check_checkbox_by_role(
-    self, 
-    name: str, 
-    check: bool = True,
-    exact: bool = False,
-    iframe_locator: str = None
-) -> None:
-    """
-    Check or uncheck checkbox using accessibility role with optional iframe support
-    
-    Args:
-        name: Accessible name of the checkbox (from aria-label, label, or associated label)
-        check: True to check, False to uncheck
-        exact: Exact match for the name
-        iframe_locator: Optional iframe CSS selector (e.g., '#iframeView')
-    
-    Examples:
-        # Check checkbox on main page
-        actions.check_checkbox_by_role("I agree to terms", check=True)
-        
-        # Uncheck checkbox on main page
-        actions.check_checkbox_by_role("Subscribe to newsletter", check=False)
-        
-        # Check checkbox in iframe
-        actions.check_checkbox_by_role("Active", check=True, iframe_locator="#iframeView")
-        
-        # Uncheck checkbox in iframe
-        actions.check_checkbox_by_role("Active", check=False, iframe_locator="#iframeView")
-    """
-    try:
-        action = "Checking" if check else "Unchecking"
-        logger.info(f"{action} checkbox '{name}'")
-        
-        element = self.page.get_by_role("checkbox", name=name, exact=exact)
-        element.wait_for(state="visible", timeout=self.timeout)
-        
-        if check:
-            element.check()
-        else:
-            element.uncheck()
-        
-        logger.success(f"Successfully {action.lower()}ed checkbox '{name}'")
-        
-    except Exception as e:
-        logger.error(f"Failed to {action.lower()} checkbox '{name}': {str(e)}")
-        raise
-
-@iframe_aware
-@allure.step("Fill textbox by role: {name}")
-def fill_textbox_by_role(
-    self, 
-    name: str, 
-    value: str, 
-    exact: bool = False,
-    iframe_locator: str = None
-) -> None:
-    """
-    Fill textbox using accessibility role with optional iframe support
-    
-    Args:
-        name: Accessible name of the textbox
-        value: Value to fill
-        exact: Exact match for the name
-        iframe_locator: Optional iframe CSS selector
-    """
-    try:
-        logger.info(f"Filling textbox '{name}' with value '{value}'")
-        self.page.get_by_role("textbox", name=name, exact=exact).fill(value)
-        logger.success(f"Successfully filled textbox '{name}'")
-    except Exception as e:
-        logger.error(f"Failed to fill textbox '{name}': {str(e)}")
-        raise
-from functools import wraps
-from typing import Callable, Any
-
-def iframe_aware(func: Callable) -> Callable:
-    """
-    Decorator to make methods iframe-aware.
-    Automatically handles iframe context switching.
-    
-    Usage:
-        @iframe_aware
-        def method_name(self, arg1, arg2, iframe_locator: str = None):
-            # Method code here - self.page will automatically point to correct context
-    """
-    @wraps(func)
-    def wrapper(self, *args, iframe_locator: str = None, **kwargs) -> Any:
-        # Get the correct context (page or iframe)
-        if iframe_locator:
-            context = self.page.frame_locator(iframe_locator)
-            logger.debug(f"Operating in iframe: {iframe_locator}")
-        else:
-            context = self.page
-            logger.debug("Operating on main page")
-        
-        # Temporarily replace self.page with the context
-        original_page = self.page
-        self.page = context
-        
+        # Collect video paths before closing pages
+        video_paths = []
         try:
-            # Execute the original method
-            result = func(self, *args, **kwargs)
-            return result
-        finally:
-            # Always restore the original page context
-            self.page = original_page
-    
-    return wrapper
-from functools import wraps
-
-def iframe_aware(method):
-    """Decorator to make methods iframe-aware"""
-    @wraps(method)
-    def wrapper(self, *args, iframe_locator=None, **kwargs):
-        # Save original page context
-        original_page = self.page
-        
-        # Switch to iframe if provided
-        if iframe_locator:
-            self.page = self.page.frame_locator(iframe_locator)
-        
-        try:
-            # Execute the original method
-            result = method(self, *args, **kwargs)
-            return result
-        finally:
-            # Restore original context
-            self.page = original_page
-    
-    return wrapper
-
-class GenericActions:
-    
-    def __init__(self, page: Page):
-        self.page = page
-        self.timeout = 30000
-    
-    @iframe_aware
-    @allure.step("Fill by label: {label}")
-    def fill_by_label(self, label: str, value: str, exact: bool = False) -> None:
-        """Fill input using label"""
-        try:
-            self.page.get_by_label(label, exact=exact).fill(value)
-            logger.success(f"Filled '{label}'")
+            for page in context.pages:
+                if page.video:
+                    video_path = page.video.path()
+                    if video_path:
+                        video_paths.append(Path(video_path))
+                page.close()
         except Exception as e:
-            logger.error(f"Failed: {str(e)}")
-            raise
-    
-    @iframe_aware
-    @allure.step("Click button: {name}")
-    def click_button(self, name: str, exact: bool = False) -> None:
-        """Click button"""
+            logger.debug(f"Error while collecting video paths: {str(e)}")
+        
+        # Close context to finalize all videos
+        logger.info("Closing browser context")
+        context.close()
+        
+        # Now delete the video files
+        for video_file in video_paths:
+            try:
+                if video_file.exists():
+                    video_file.unlink()
+                    logger.debug(f"Deleted video: {video_file}")
+            except Exception as e:
+                logger.debug(f"Could not delete video {video_file}: {str(e)}")
+        
+        # Also clean up any orphaned videos in the directory
         try:
-            self.page.get_by_role("button", name=name, exact=exact).click()
-            logger.success(f"Clicked '{name}'")
+            video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
+            for orphaned_video in video_dir.glob('*.webm'):
+                # Only delete if it's from a recent run (within last hour)
+                if time.time() - orphaned_video.stat().st_mtime < 3600:
+                    try:
+                        orphaned_video.unlink()
+                        logger.debug(f"Deleted orphaned video: {orphaned_video}")
+                    except:
+                        pass
         except Exception as e:
-            logger.error(f"Failed: {str(e)}")
-            raise
-
-
-@allure.step("Fill textbox by role: {name}")
-def fill_textbox_by_role(
-    self, 
-    name: str, 
-    value: str, 
-    exact: bool = False,
-    iframe_locator: str = None
-) -> None:
-    """
-    Fill textbox using accessibility role with optional iframe support
+            logger.debug(f"Error cleaning up orphaned videos: {str(e)}")
+        
+        return  # Early return since context is already closed
     
-    Args:
-        name: Accessible name of the textbox (from aria-label, label, or placeholder)
-        value: Value to fill
-        exact: Exact match for the name
-        iframe_locator: Optional iframe CSS selector (e.g., '#iframeView')
-    
-    Examples:
-        # Without iframe
-        actions.fill_textbox_by_role("Account Name", "Test Account")
-        
-        # With iframe
-        actions.fill_textbox_by_role("Account Name", "Test Account", iframe_locator="#iframeView")
-    """
-    try:
-        logger.info(f"Filling textbox '{name}' with value '{value}'" + 
-                   (f" in iframe '{iframe_locator}'" if iframe_locator else ""))
-        
-        if iframe_locator:
-            # Work inside iframe
-            frame = self.page.frame_locator(iframe_locator)
-            frame.get_by_role("textbox", name=name, exact=exact).fill(value)
-        else:
-            # Work on main page
-            self.page.get_by_role("textbox", name=name, exact=exact).fill(value)
-        
-        logger.success(f"Successfully filled textbox '{name}'")
-        
-    except Exception as e:
-        logger.error(f"Failed to fill textbox '{name}': {str(e)}")
-        raise
-
-
-
-
-{locator} with value: {value}")
-def fill_textbox(self, locator: str, value: str, clear_first: bool=True, iframe_locator: str=None) -> None:
-    """
-    Fill a textbox with the given value
-    
-    Args:
-        locator: CSS/XPath locator for the textbox
-        value: Value to fill
-        clear_first: Clear existing text before filling (default: True)
-        iframe_locator: Optional iframe locator (e.g., '#iframeView'). If None, works on main page
-    
-    Examples:
-        # Without iframe (main page)
-        actions.fill_textbox("#username", "john.doe")
-        
-        # With iframe
-        actions.fill_textbox("#username", "john.doe", iframe_locator="#iframeView")
-    """
-    try:
-        logger.info(f"Filling textbox '{locator}' with value '{value}'" + 
-                   (f" in iframe '{iframe_locator}'" if iframe_locator else ""))
-        
-        # Choose context: iframe or main page
-        if iframe_locator:
-            frame = self.page.frame_locator(iframe_locator)
-            element = frame.locator(locator)
-        else:
-            element = self.page.locator(locator)
-        
-        element.wait_for(state="visible", timeout=self.timeout)
-        
-        if clear_first:
-            element.clear()
-        
-        element.fill(value)
-        logger.success(f"Successfully filled textbox '{locator}'")
-    except Exception as e:
-        logger.error(f"Failed to fill textbox 
+    # If test failed, close context normally
+    logger.info("Closing browser context")
+    context.close()
