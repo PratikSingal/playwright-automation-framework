@@ -1,3 +1,91 @@
+@pytest.fixture(scope="function")
+def context(browser: Browser, config_manager, request) -> BrowserContext:
+    """
+    Create a new browser context for each test
+    Browser context is like an incognito window - isolated cookies, cache, etc.
+    """
+    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
+    
+    logger.info("Creating new browser context")
+    
+    # Context options
+    context_options = {
+        'viewport': viewport,
+        'ignore_https_errors': True,
+        'java_script_enabled': True,
+        'accept_downloads': True
+    }
+    
+    # Create unique video subdirectory for this test
+    test_name = request.node.name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    base_video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
+    # Create a unique subdirectory for this test's video
+    test_video_dir = base_video_dir / f"{test_name}_{timestamp}"
+    test_video_dir.mkdir(parents=True, exist_ok=True)
+    
+    context_options['record_video_dir'] = str(test_video_dir)
+    context_options['record_video_size'] = viewport
+    
+    # Store these for later use
+    context._test_video_dir = test_video_dir
+    context._test_name = test_name
+    context._test_timestamp = timestamp
+    
+    context = browser.new_context(**context_options)
+    
+    # Enable tracing for debugging
+    if config_manager.get('browser.trace_on_failure', True):
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    
+    logger.success("Browser context created")
+    
+    yield context
+    
+    # Check if test failed
+    test_failed = False
+    if hasattr(request.node, 'rep_call'):
+        test_failed = request.node.rep_call.failed
+    
+    # Stop tracing before closing pages
+    if config_manager.get('browser.trace_on_failure', True):
+        try:
+            context.tracing.stop()
+        except Exception as e:
+            logger.warning(f"Failed to stop tracing: {str(e)}")
+    
+    # Close all pages first
+    for page in context.pages:
+        try:
+            page.close()
+        except Exception as e:
+            logger.debug(f"Error closing page: {str(e)}")
+    
+    # Close context to finalize videos
+    logger.info("Closing browser context")
+    context.close()
+    
+    # Wait for video to be written
+    import time
+    time.sleep(1)
+    
+    # Handle video based on test result
+    if not test_failed:
+        logger.info("Test passed - deleting video folder")
+        
+        try:
+            import shutil
+            if test_video_dir.exists():
+                shutil.rmtree(test_video_dir)
+                logger.info(f"Deleted video folder: {test_video_dir}")
+        except Exception as e:
+            logger.debug(f"Error deleting video folder: {str(e)}")
+    else:
+        logger.info("Test failed - video folder kept for attachment")
+
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """
@@ -103,3 +191,34 @@ def pytest_runtest_makereport(item, call):
                         logger.info("Console logs attached in hook")
             except Exception as e:
                 logger.debug(f"Could not capture console logs in hook: {str(e)}")
+            
+            # Attach video
+            if context and hasattr(context, '_test_video_dir'):
+                try:
+                    test_video_dir = context._test_video_dir
+                    
+                    # Find video file in the directory
+                    video_files = list(test_video_dir.glob('*.webm'))
+                    
+                    if video_files:
+                        video_file = video_files[0]  # Should only be one
+                        logger.info(f"Found video file: {video_file}")
+                        
+                        # Read video bytes
+                        video_bytes = video_file.read_bytes()
+                        
+                        # Attach to Allure
+                        allure.attach(
+                            video_bytes,
+                            name="Test Video",
+                            attachment_type=allure.attachment_type.WEBM
+                        )
+                        
+                        logger.info(f"Video attached to Allure: {video_file.name}, size: {len(video_bytes)} bytes")
+                    else:
+                        logger.warning(f"No video files found in {test_video_dir}")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to attach video in hook: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
