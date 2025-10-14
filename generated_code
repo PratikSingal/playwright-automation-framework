@@ -1,245 +1,105 @@
-
-@pytest.fixture(scope="function")
-def context(browser: Browser, config_manager, request) -> BrowserContext:
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
     """
-    Create a new browser context for each test
-    Browser context is like an incognito window - isolated cookies, cache, etc.
+    Hook to capture test result for fixtures
+    This makes test result available to fixtures via request.node.rep_call
     """
-    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
+    outcome = yield
+    rep = outcome.get_result()
     
-    logger.info("Creating new browser context")
+    # Store report for fixture access
+    setattr(item, f"rep_{rep.when}", rep)
     
-    # Context options
-    context_options = {
-        'viewport': viewport,
-        'ignore_https_errors': True,
-        'java_script_enabled': True,
-        'accept_downloads': True
-    }
-    
-    # Create unique video directory for this test to avoid conflicts
-    base_video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
-    base_video_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Record existing video files before creating context
-    existing_videos = set(base_video_dir.glob('*.webm'))
-    
-    context_options['record_video_dir'] = str(base_video_dir)
-    context_options['record_video_size'] = viewport
-    
-    context = browser.new_context(**context_options)
-    
-    # Enable tracing for debugging
-    if config_manager.get('browser.trace_on_failure', True):
-        context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    
-    logger.success("Browser context created")
-    
-    yield context
-    
-    # Check if test failed
-    test_failed = False
-    if hasattr(request.node, 'rep_call'):
-        test_failed = request.node.rep_call.failed
-    
-    # Stop tracing before closing pages
-    if config_manager.get('browser.trace_on_failure', True):
-        try:
-            context.tracing.stop()
-        except Exception as e:
-            logger.warning(f"Failed to stop tracing: {str(e)}")
-    
-    # Close all pages first
-    for page in context.pages:
-        try:
-            page.close()
-        except Exception as e:
-            logger.debug(f"Error closing page: {str(e)}")
-    
-    # Close context to finalize videos
-    logger.info("Closing browser context")
-    context.close()
-    
-    # Wait for videos to be written to disk
-    import time
-    time.sleep(1)
-    
-    # Find NEW video files created by this context
-    current_videos = set(base_video_dir.glob('*.webm'))
-    new_videos = current_videos - existing_videos
-    
-    if new_videos:
-        logger.info(f"Found {len(new_videos)} new video file(s) for this test")
+    # Attach artifacts when test call fails - THIS IS THE RIGHT TIME
+    if rep.when == "call" and rep.failed:
+        logger.warning(f"Test call failed, attaching artifacts for: {item.name}")
         
-        if test_failed:
-            logger.warning("Test failed - keeping and attaching video")
-            
-            try:
-                for video_file in new_videos:
-                    if video_file.exists():
-                        # Attach to Allure report
-                        allure.attach.file(
-                            str(video_file),
-                            name=f"Test Video - {request.node.name}",
-                            attachment_type=allure.attachment_type.WEBM,
-                            extension=".webm"
-                        )
-                        logger.info(f"Video attached to Allure: {video_file.name}")
-            except Exception as e:
-                logger.error(f"Failed to attach video: {str(e)}")
-        else:
-            logger.info("Test passed - deleting video")
-            
-            try:
-                for video_file in new_videos:
-                    if video_file.exists():
-                        video_file.unlink()
-                        logger.debug(f"Deleted video: {video_file.name}")
-                logger.info(f"Deleted {len(new_videos)} video file(s)")
-            except Exception as e:
-                logger.debug(f"Error deleting videos: {str(e)}")
-    else:
-        logger.debug("No new video files found for this test")
-
-
-@pytest.fixture(scope="function")
-def context(browser: Browser, config_manager, request) -> BrowserContext:
-    """
-    Create a new browser context for each test
-    Browser context is like an incognito window - isolated cookies, cache, etc.
-    """
-    viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
-    
-    logger.info("Creating new browser context")
-    
-    # Context options
-    context_options = {
-        'viewport': viewport,
-        'ignore_https_errors': True,
-        'java_script_enabled': True,
-        'accept_downloads': True
-    }
-    
-    # Always enable video recording to capture it
-    video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
-    video_dir.mkdir(parents=True, exist_ok=True)
-    context_options['record_video_dir'] = str(video_dir)
-    context_options['record_video_size'] = viewport
-    
-    context = browser.new_context(**context_options)
-    
-    # Enable tracing for debugging
-    if config_manager.get('browser.trace_on_failure', True):
-        context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    
-    logger.success("Browser context created")
-    
-    yield context
-    
-    # Check if test failed
-    test_failed = False
-    if hasattr(request.node, 'rep_call'):
-        test_failed = request.node.rep_call.failed
-    
-    # Stop tracing before closing pages
-    if config_manager.get('browser.trace_on_failure', True):
-        try:
-            context.tracing.stop()
-        except Exception as e:
-            logger.warning(f"Failed to stop tracing: {str(e)}")
-    
-    # Handle video based on test result
-    if test_failed:
-        logger.warning("Test failed - keeping and attaching video")
+        # Get the page from the item's funcargs (fixture values)
+        page = item.funcargs.get('page')
+        context = item.funcargs.get('context')
+        config_manager = item.funcargs.get('config_manager')
         
-        # Attach video to Allure report
-        try:
-            for page in context.pages:
-                if page.video:
-                    # Close page to finalize video
-                    page.close()
-                    
-                    # Get video path after closing
-                    video_path = page.video.path()
-                    
-                    if video_path:
-                        video_file = Path(video_path)
-                        
-                        # Wait briefly for video file to be written
-                        import time
-                        max_wait = 5  # seconds
-                        wait_interval = 0.2
-                        elapsed = 0
-                        
-                        while not video_file.exists() and elapsed < max_wait:
-                            time.sleep(wait_interval)
-                            elapsed += wait_interval
-                        
-                        if video_file.exists():
-                            # Attach to Allure report
-                            allure.attach.file(
-                                str(video_file),
-                                name=f"Test Video - {request.node.name}",
-                                attachment_type=allure.attachment_type.WEBM,
-                                extension=".webm"
-                            )
-                            logger.info(f"Video attached to Allure: {video_path}")
-                        else:
-                            logger.warning(f"Video file not found: {video_path}")
-                else:
-                    page.close()
-        except Exception as e:
-            logger.error(f"Failed to attach video: {str(e)}")
-            # Close any remaining pages
-            for page in context.pages:
+        if page and config_manager:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            test_name = item.name
+            
+            # Take screenshot
+            if config_manager.get('browser.screenshot_on_failure', True):
                 try:
-                    page.close()
-                except:
-                    pass
-    else:
-        logger.info("Test passed - deleting video")
-        
-        # Collect video paths before closing pages
-        video_paths = []
-        try:
-            for page in context.pages:
-                if page.video:
-                    video_path = page.video.path()
-                    if video_path:
-                        video_paths.append(Path(video_path))
-                page.close()
-        except Exception as e:
-            logger.debug(f"Error while collecting video paths: {str(e)}")
-        
-        # Close context to finalize all videos
-        logger.info("Closing browser context")
-        context.close()
-        
-        # Now delete the video files
-        for video_file in video_paths:
+                    screenshot_dir = Path(config_manager.get('reporting.screenshots', 'reports/screenshots'))
+                    screenshot_dir.mkdir(parents=True, exist_ok=True)
+                    screenshot_path = screenshot_dir / f"{test_name}_{timestamp}.png"
+                    
+                    logger.info(f"Taking screenshot: {screenshot_path}")
+                    
+                    # Take screenshot
+                    screenshot_bytes = page.screenshot(path=str(screenshot_path), full_page=True)
+                    
+                    logger.info(f"Screenshot captured, size: {len(screenshot_bytes)} bytes")
+                    
+                    # Attach to Allure
+                    allure.attach(
+                        screenshot_bytes,
+                        name="Screenshot",
+                        attachment_type=allure.attachment_type.PNG
+                    )
+                    
+                    logger.info("Screenshot attached to Allure in hook")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to capture screenshot in hook: {str(e)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            
+            # Save trace
+            if context and config_manager.get('browser.trace_on_failure', True):
+                try:
+                    trace_dir = Path(config_manager.get('reporting.allure_results', 'reports/allure-results'))
+                    trace_dir.mkdir(parents=True, exist_ok=True)
+                    trace_path = trace_dir / f"trace_{test_name}_{timestamp}.zip"
+                    
+                    context.tracing.stop(path=str(trace_path))
+                    
+                    logger.info(f"Trace saved: {trace_path}")
+                    
+                    # Attach trace
+                    trace_bytes = trace_path.read_bytes()
+                    allure.attach(
+                        trace_bytes,
+                        name="Trace",
+                        attachment_type=allure.attachment_type.ZIP
+                    )
+                    
+                    logger.info("Trace attached to Allure in hook")
+                    
+                    # Restart tracing
+                    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save trace in hook: {str(e)}")
+            
+            # Save page HTML
             try:
-                if video_file.exists():
-                    video_file.unlink()
-                    logger.debug(f"Deleted video: {video_file}")
+                html_content = page.content()
+                allure.attach(
+                    html_content,
+                    name="Page HTML",
+                    attachment_type=allure.attachment_type.HTML
+                )
+                logger.info("Page HTML attached in hook")
             except Exception as e:
-                logger.debug(f"Could not delete video {video_file}: {str(e)}")
-        
-        # Also clean up any orphaned videos in the directory
-        try:
-            video_dir = Path(config_manager.get('reporting.videos', 'reports/videos'))
-            for orphaned_video in video_dir.glob('*.webm'):
-                # Only delete if it's from a recent run (within last hour)
-                if time.time() - orphaned_video.stat().st_mtime < 3600:
-                    try:
-                        orphaned_video.unlink()
-                        logger.debug(f"Deleted orphaned video: {orphaned_video}")
-                    except:
-                        pass
-        except Exception as e:
-            logger.debug(f"Error cleaning up orphaned videos: {str(e)}")
-        
-        return  # Early return since context is already closed
-    
-    # If test failed, close context normally
-    logger.info("Closing browser context")
-    context.close()
+                logger.error(f"Failed to save page HTML in hook: {str(e)}")
+            
+            # Save console logs
+            try:
+                if context:
+                    console_logs = "\n".join([f"[{msg.type}] {msg.text}" for msg in page.context.pages[0]._impl_obj._console_messages])
+                    if console_logs:
+                        allure.attach(
+                            console_logs,
+                            name="Console Logs",
+                            attachment_type=allure.attachment_type.TEXT
+                        )
+                        logger.info("Console logs attached in hook")
+            except Exception as e:
+                logger.debug(f"Could not capture console logs in hook: {str(e)}")
