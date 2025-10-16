@@ -1,254 +1,293 @@
-import allure
-from playwright.sync_api import Page , expect
-from pages.base_page import BasePage
-from typing import Dict, Any
-from loguru import logger
+# ==================== CELL-BASED METHODS WITH IFRAME_AWARE ====================
 
-
-class RegistrationPage(BasePage):
-    """Page Object Model for Registration Form"""
+@iframe_aware
+@allure.step("Fill field in cell: {cell_name} -> {value}")
+def fill_by_cell(
+    self, 
+    cell_name: str, 
+    field_type: str, 
+    value: Any,
+    iframe_locator: Optional[str] = None
+) -> None:
+    """
+    Fill field using cell-based navigation (iframe aware)
+    Pattern: get_by_role("cell", name="Cell Name").get_by_role("textbox")
     
-    # Define field mapping with locators, types, and methods
+    Args:
+        cell_name: Name/text of the cell to find
+        field_type: Role of element to find within cell (textbox, checkbox, button, etc.)
+        value: Value to fill/set
+        iframe_locator: Optional iframe locator (handled by decorator)
+    """
+    try:
+        logger.info(f"Filling {field_type} in cell '{cell_name}' with value '{value}'")
+        
+        # Navigate to cell
+        cell = self.page.get_by_role("cell", name=cell_name)
+        
+        # Find element within cell by role (no name needed)
+        element = cell.get_by_role(field_type)
+        
+        # Fill based on field type
+        if field_type in ['textbox', 'searchbox', 'spinbutton']:
+            element.fill(str(value))
+        elif field_type == 'checkbox':
+            if bool(value):
+                element.check()
+            else:
+                element.uncheck()
+        elif field_type == 'button':
+            element.click()
+        elif field_type == 'combobox':
+            element.select_option(str(value))
+        else:
+            element.fill(str(value))  # Default to fill
+        
+        logger.success(f"✓ Filled {field_type} in cell '{cell_name}'")
+        
+    except Exception as e:
+        logger.error(f"✗ Failed to fill field in cell '{cell_name}': {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify field in cell: {cell_name} = {expected_value}")
+def verify_by_cell(
+    self,
+    cell_name: str,
+    field_type: str,
+    expected_value: Any,
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """
+    Verify field value using cell-based navigation (iframe aware)
+    Pattern: get_by_role("cell", name="Cell Name").get_by_role("textbox")
+    
+    Args:
+        cell_name: Name/text of the cell to find
+        field_type: Role of element to find within cell
+        expected_value: Expected value to verify
+        iframe_locator: Optional iframe locator (handled by decorator)
+        timeout: Assertion timeout
+    """
+    try:
+        logger.info(f"Verifying {field_type} in cell '{cell_name}' = '{expected_value}'")
+        
+        # Navigate to cell
+        cell = self.page.get_by_role("cell", name=cell_name)
+        
+        # Find element within cell by role
+        element = cell.get_by_role(field_type)
+        
+        # Verify based on field type
+        if field_type in ['textbox', 'searchbox', 'spinbutton', 'combobox']:
+            expect(element).to_have_value(str(expected_value), timeout=timeout)
+        elif field_type == 'checkbox':
+            if bool(expected_value):
+                expect(element).to_be_checked(timeout=timeout)
+            else:
+                expect(element).not_to_be_checked(timeout=timeout)
+        elif field_type == 'button':
+            if bool(expected_value):
+                expect(element).to_be_visible(timeout=timeout)
+        else:
+            expect(element).to_have_value(str(expected_value), timeout=timeout)
+        
+        logger.success(f"✓ Verified {field_type} in cell '{cell_name}'")
+        
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed for cell '{cell_name}': {str(e)}")
+        self.page.screenshot(path=f"error_verify_cell_{cell_name.replace(' ', '_')}.png")
+        raise
+
+
+
+def _fill_by_locator(self, field_type: str, locator: str, value: Any, field_config: Dict) -> None:
+    """Fill field using traditional CSS/XPath locator or handle special dropdown types"""
+    
+    # Check if this is a cell-based field
+    if field_config.get('method') == 'cell':
+        cell_name = field_config.get('cell_name')
+        iframe_loc = field_config.get('iframe_locator')
+        
+        if not cell_name:
+            raise ValueError("Cell method requires 'cell_name' in field config")
+        
+        # Use the iframe-aware cell method
+        self.actions.fill_by_cell(
+            cell_name=cell_name,
+            field_type=field_type,
+            value=value,
+            iframe_locator=iframe_loc
+        )
+        return  # Exit early
+    
+    # ... rest of your existing _fill_by_locator code for dropdowns, textboxes, etc.
+
+
+def verify_form_data(
+    self, 
+    field_mapping: Dict[str, Any], 
+    expected_data: Dict[str, Any],
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """
+    Generic method to verify form data based on field type and method
+    """
+    logger.info("Starting to verify form data")
+    
+    for field_name, expected_value in expected_data.items():
+        if field_name not in field_mapping:
+            logger.warning(f"Field '{field_name}' not found in mapping, skipping verification")
+            continue
+        
+        field_config = field_mapping[field_name]
+        field_type = field_config['type'].lower()
+        method = field_config.get('method', 'locator')
+        
+        # Use iframe_locator from field config if present, otherwise use the parameter
+        field_iframe = field_config.get('iframe_locator', iframe_locator)
+        
+        try:
+            with allure.step(f"Verifying field: {field_name}"):
+                
+                # HANDLE CELL-BASED VERIFICATION
+                if method == 'cell':
+                    cell_name = field_config.get('cell_name')
+                    if not cell_name:
+                        raise ValueError(f"Field '{field_name}' uses 'cell' method but missing 'cell_name'")
+                    
+                    # Use iframe-aware cell verification
+                    self.actions.verify_by_cell(
+                        cell_name=cell_name,
+                        field_type=field_type,
+                        expected_value=expected_value,
+                        iframe_locator=field_iframe,
+                        timeout=timeout
+                    )
+                
+                # HANDLE STANDARD VERIFICATION (existing code)
+                elif method == 'get_by_label':
+                    locator = field_config['locator']
+                    exact = field_config.get('exact', False)
+                    if '{' in locator and isinstance(expected_value, str):
+                        locator = locator.format(value=expected_value)
+                    
+                    element = self._get_element_by_method(method, field_type, locator, exact, field_iframe)
+                    self._verify_field_value(element, field_type, expected_value, timeout)
+                
+                # ... other methods (get_by_placeholder, get_by_role, etc.)
+                
+                else:
+                    locator = field_config.get('locator')
+                    exact = field_config.get('exact', False)
+                    if locator and '{' in locator and isinstance(expected_value, str):
+                        locator = locator.format(value=expected_value)
+                    
+                    element = self._get_element_by_method(method, field_type, locator, exact, field_iframe)
+                    self._verify_field_value(element, field_type, expected_value, timeout)
+                
+                logger.success(f"✓ Field '{field_name}' verified")
+                
+        except AssertionError as e:
+            logger.error(f"✗ Verification failed for '{field_name}': {str(e)}")
+            allure.attach(
+                str(e),
+                name=f"Verification failed: {field_name}",
+                attachment_type=allure.attachment_type.TEXT
+            )
+            raise
+    
+    logger.success("All form data verified successfully")
+
+
+class NewAccountPage(BasePage):
+    """Page Object for New Account form in iframe"""
+    
+    # Locator constants
+    IFRAME_LOCATOR = "#iframeView"
+    
     FIELD_MAPPING = {
-        # Using get_by_label (recommended for form inputs with labels)
-        'first_name': {
-            'locator': 'First Name',
+        # Cell-based fields from your snippet
+        'account_name': {
+            'cell_name': 'Account Name',
             'type': 'textbox',
-            'method': 'get_by_label'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
-        'last_name': {
-            'locator': 'Last Name',
+        
+        'add_branch': {
+            'cell_name': 'AddBranch',
             'type': 'textbox',
-            'method': 'get_by_label'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
         
-        # Using get_by_placeholder (when no label exists)
-        'email': {
-            'locator': 'Enter your email',
+        'net': {
+            'cell_name': 'Net',
             'type': 'textbox',
-            'method': 'get_by_placeholder'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
         
-        # Using traditional CSS locator
-        'password': {
-            'locator': '#password',
+        'principal_currency': {
+            'cell_name': 'Principal Currency',
             'type': 'textbox',
-            'method': 'locator'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
-        'confirm_password': {
-            'locator': '#confirmPassword',
+        
+        'issb_main': {
+            'cell_name': 'ISSB_Main',
             'type': 'textbox',
-            'method': 'locator'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
         
-        # Using get_by_label for phone
-        'phone': {
-            'locator': 'Phone Number',
+        'ifb': {
+            'cell_name': 'IFB',
             'type': 'textbox',
-            'method': 'get_by_label'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         },
         
-        'date_of_birth': {
-            'locator': '#dob',
+        'other': {
+            'cell_name': 'Other',
             'type': 'textbox',
-            'method': 'locator'
-        },
-        
-        'bio': {
-            'locator': '#bio',
-            'type': 'textarea',
-            'method': 'locator'
-        },
-        
-        # Dynamic radio button with CSS locator
-        'gender': {
-            'locator': 'input[name="gender"][value="{value}"]',
-            'type': 'radio',
-            'method': 'locator'
-        },
-        
-        # Dropdown with CSS
-        'country': {
-            'locator': '#country',
-            'type': 'dropdown',
-            'method': 'locator',
-            'select_by': 'value'
-        },
-        
-        # Checkbox using get_by_label
-        'terms_conditions': {
-            'locator': 'I agree to terms and conditions',
-            'type': 'checkbox',
-            'method': 'get_by_label'
-        },
-        
-        'newsletter': {
-            'locator': '#newsletter',
-            'type': 'checkbox',
-            'method': 'locator'
-        },
-        
-        'profile_picture': {
-            'locator': '#profilePicture',
-            'type': 'file',
-            'method': 'locator'
-        },
-        
-        # Link using get_by_role
-        'privacy_policy': {
-            'locator': 'Privacy Policy',
-            'type': 'link',
-            'method': 'get_by_role'
+            'method': 'cell',
+            'iframe_locator': '#iframeView'
         }
     }
     
-    # Page-specific locators
-    SUBMIT_BUTTON = 'Submit'  # Using accessible name
-    SUCCESS_MESSAGE = '.success-message'
-    ERROR_MESSAGE = '.error-message'
-    REGISTRATION_FORM = '#registrationForm'
-    
     def __init__(self, page: Page):
         super().__init__(page)
-        logger.info("Initialized Registration Page")
+        logger.info("Initialized New Account Page")
     
-    @allure.step("Open registration page")
+    @allure.step("Open new account page")
     def open(self, url: str) -> None:
-        """Open the registration page"""
+        """Navigate to new account page"""
         self.navigate_to(url)
-        self.actions.wait_for_element(self.REGISTRATION_FORM, state="visible")
+        # Wait for iframe to load
+        self.page.wait_for_selector(self.IFRAME_LOCATOR, state="visible")
+        self.page.frame_locator(self.IFRAME_LOCATOR).locator("body").wait_for(state="visible")
+        logger.success("New account page loaded")
     
-    @allure.step("Fill registration form")
-    def fill_registration_form(self, data: Dict[str, Any]) -> None:
-        """
-        Fill the registration form with provided data
-        
-        Args:
-            data: Dictionary containing form field values
-                Example: {
-                    'first_name': 'John',
-                    'last_name': 'Doe',
-                    'email': 'john@example.com',
-                    'password': 'Test@123',
-                    'gender': 'male',
-                    'terms_conditions': True
-                }
-        """
-        logger.info("Filling registration form with data")
-        
-        # Use the generic fill_form_data method from BasePage
-        # No need for special handling - dynamic locators handled automatically
+    @allure.step("Fill new account form")
+    def fill_new_account_form(self, data: Dict[str, Any]) -> None:
+        """Fill the new account form"""
+        logger.info("Filling new account form")
         self.fill_form_data(self.FIELD_MAPPING, data)
-        
-        logger.success("Registration form filled successfully")
+        logger.success("New account form filled")
     
-    @allure.step("Submit registration form")
-    def submit_form(self) -> None:
-        """Submit the registration form"""
-        logger.info("Submitting registration form")
-        # Using accessible button name
-        self.actions.click_button(self.SUBMIT_BUTTON)
-        logger.success("Registration form submitted")
-    
-    @allure.step("Get success message")
-    def get_success_message(self) -> str:
-        """Get the success message after registration"""
-        logger.info("Retrieving success message")
-        self.actions.wait_for_element(self.SUCCESS_MESSAGE, state="visible")
-        message = self.actions.get_text(self.SUCCESS_MESSAGE)
-        logger.success(f"Success message: {message}")
-        return message
-    
-    @allure.step("Get error message")
-    def get_error_message(self) -> str:
-        """Get the error message if registration fails"""
-        logger.info("Retrieving error message")
-        self.actions.wait_for_element(self.ERROR_MESSAGE, state="visible")
-        message = self.actions.get_text(self.ERROR_MESSAGE)
-        logger.warning(f"Error message: {message}")
-        return message
-    
-    @allure.step("Verify registration form is displayed")
-    def is_registration_form_displayed(self) -> bool:
-        """Verify if the registration form is displayed"""
-        is_displayed = self.actions.is_visible(self.REGISTRATION_FORM)
-        logger.info(f"Registration form displayed: {is_displayed}")
-        return is_displayed
-    
-    @allure.step("Verify registration form data")
-    def verify_registration_form(self, expected_data: Dict[str, Any]) -> None:
-        """
-        Verify the registration form contains expected data
-        
-        Args:
-            expected_data: Dictionary containing expected field values
-                Example: {
-                    'first_name': 'John',
-                    'last_name': 'Doe',
-                    'email': 'john@example.com',
-                    'terms_conditions': True
-                }
-        """
-        logger.info("Verifying registration form data")
-        self.verify_form_data(self.FIELD_MAPPING, expected_data)
-        logger.success("Registration form data verified successfully")
-    
-    @allure.step("Verify successful registration")
-    def verify_successful_registration(self, expected_email: str = None) -> None:
-        """Verify registration was successful"""
-        
-        # Check success message
-        success_locator = self.page.locator(self.SUCCESS_MESSAGE)
-        expect(success_locator).to_be_visible(timeout=10000)
-        expect(success_locator).to_contain_text("successful", ignore_case=True)
-        logger.success("✓ Success message verified")
-        
-        # Check URL changed
-        expect(self.page).not_to_have_url("**/register")
-        logger.success("✓ Navigated away from registration page")
-        
-        # Check email if provided
-        if expected_email:
-            email_locator = self.page.locator('.user-email')
-            expect(email_locator).to_contain_text(expected_email)
-            logger.success(f"✓ Email {expected_email} verified")
-    
-    @allure.step("Verify registration failed")
-    def verify_registration_failed(self, expected_error: str = None) -> None:
-        """Verify registration failed with error message"""
-        
-        # Check error message exists
-        error_locator = self.page.locator(self.ERROR_MESSAGE)
-        expect(error_locator).to_be_visible(timeout=10000)
-        logger.warning("Error message displayed")
-        
-        # Check specific error if provided
-        if expected_error:
-            expect(error_locator).to_contain_text(expected_error, ignore_case=True)
-            logger.success(f"✓ Expected error '{expected_error}' verified")
-        
-        # Verify still on registration page
-        expect(self.page).to_have_url("**/register")
-        logger.success("✓ Still on registration page")
-    
-    @allure.step("Verify all required fields are visible")
-    def verify_required_fields_visible(self, required_fields: List[str]) -> None:
-        """Verify all required fields are visible on the form"""
-        for field_name in required_fields:
-            if field_name not in self.FIELD_MAPPING:
-                logger.warning(f"Field '{field_name}' not in mapping")
-                continue
-            
-            field_config = self.FIELD_MAPPING[field_name]
-            locator = field_config['locator']
-            method = field_config.get('method', 'locator')
-            
-            element = self._get_element_by_method(
-                method, 
-                field_config['type'], 
-                locator, 
-                field_config.get('exact', False)
-            )
-            
-            expect(element).to_be_visible()
-            logger.success(f"✓ Field '{field_name}' is visible")
+    @allure.step("Verify new account form")
+    def verify_new_account_form(self, expected_data: Dict[str, Any]) -> None:
+        """Verify the new account form data"""
+        logger.info("Verifying new account form")
+        self.verify_form_data(
+            self.FIELD_MAPPING, 
+            expected_data,
+            iframe_locator=self.IFRAME_LOCATOR
+        )
+        logger.success("New account form verified")
