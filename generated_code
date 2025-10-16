@@ -1,185 +1,229 @@
-def verify_form_data(
-    self, 
-    field_mapping: Dict[str, Any], 
-    expected_data: Dict[str, Any],
+# ==================== IFRAME-AWARE VERIFICATION METHODS ====================
+
+@iframe_aware
+@allure.step("Verify textbox by label: {label} = {expected_value}")
+def verify_textbox_by_label(
+    self,
+    label: str,
+    expected_value: str,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify textbox value using label"""
+    try:
+        logger.info(f"Verifying textbox with label '{label}' = '{expected_value}'")
+        element = self.page.get_by_label(label, exact=exact)
+        expect(element).to_have_value(expected_value, timeout=timeout)
+        logger.success(f"✓ Textbox '{label}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify textbox by role: {name} = {expected_value}")
+def verify_textbox_by_role(
+    self,
+    name: str,
+    expected_value: str,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify textbox value using role"""
+    try:
+        logger.info(f"Verifying textbox '{name}' = '{expected_value}'")
+        element = self.page.get_by_role("textbox", name=name, exact=exact)
+        expect(element).to_have_value(expected_value, timeout=timeout)
+        logger.success(f"✓ Textbox '{name}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify textbox by placeholder: {placeholder} = {expected_value}")
+def verify_textbox_by_placeholder(
+    self,
+    placeholder: str,
+    expected_value: str,
     iframe_locator: Optional[str] = None,
     timeout: int = 5000
 ) -> None:
-    """
-    Generic method to verify form data based on field type and method
-    Uses iframe-aware generic methods from GenericActions
-    
-    Args:
-        field_mapping: Dictionary mapping field names to their configuration
-        expected_data: Dictionary containing expected values to verify
-        iframe_locator: Optional iframe locator for fields inside iframe
-        timeout: Timeout for assertions in milliseconds
-    """
-    logger.info("Starting to verify form data")
-    
-    for field_name, expected_value in expected_data.items():
-        if field_name not in field_mapping:
-            logger.warning(f"Field '{field_name}' not found in mapping, skipping verification")
-            continue
+    """Verify textbox value using placeholder"""
+    try:
+        logger.info(f"Verifying textbox with placeholder '{placeholder}' = '{expected_value}'")
+        element = self.page.get_by_placeholder(placeholder)
+        expect(element).to_have_value(expected_value, timeout=timeout)
+        logger.success(f"✓ Textbox with placeholder '{placeholder}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify textbox by locator: {locator} = {expected_value}")
+def verify_textbox_by_locator(
+    self,
+    locator: str,
+    expected_value: str,
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """Verify textbox value using direct locator"""
+    try:
+        logger.info(f"Verifying textbox '{locator}' = '{expected_value}'")
+        element = self.page.locator(locator)
+        expect(element).to_have_value(expected_value, timeout=timeout)
+        logger.success(f"✓ Textbox '{locator}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify checkbox by label: {label}")
+def verify_checkbox_by_label(
+    self,
+    label: str,
+    should_be_checked: bool,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify checkbox state using label"""
+    try:
+        state = "checked" if should_be_checked else "unchecked"
+        logger.info(f"Verifying checkbox '{label}' is {state}")
+        element = self.page.get_by_label(label, exact=exact)
         
-        field_config = field_mapping[field_name]
-        field_type = field_config['type'].lower()
-        method = field_config.get('method', 'locator')
+        if should_be_checked:
+            expect(element).to_be_checked(timeout=timeout)
+        else:
+            expect(element).not_to_be_checked(timeout=timeout)
         
-        # Use iframe_locator from field config if present, otherwise use the parameter
-        field_iframe = field_config.get('iframe_locator', iframe_locator)
+        logger.success(f"✓ Checkbox '{label}' is {state}")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
+
+
+@iframe_aware
+@allure.step("Verify checkbox by role: {name}")
+def verify_checkbox_by_role(
+    self,
+    name: str,
+    should_be_checked: bool,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify checkbox state using role"""
+    try:
+        state = "checked" if should_be_checked else "unchecked"
+        logger.info(f"Verifying checkbox '{name}' is {state}")
+        element = self.page.get_by_role("checkbox", name=name, exact=exact)
         
-        try:
-            with allure.step(f"Verifying field: {field_name} = {expected_value}"):
-                
-                # Get locator and exact match setting
-                locator = field_config.get('locator')
-                exact = field_config.get('exact', False)
-                
-                # Handle dynamic locators
-                if locator and '{' in locator and isinstance(expected_value, str):
-                    locator = locator.format(value=expected_value)
-                
-                # ==========================================
-                # ROUTE TO APPROPRIATE GENERIC METHOD
-                # ==========================================
-                
-                if method == 'get_by_label':
-                    self._verify_by_label(field_type, locator, expected_value, exact, field_iframe, timeout)
-                
-                elif method == 'get_by_role':
-                    self._verify_by_role(field_type, locator, expected_value, exact, field_iframe, timeout)
-                
-                elif method == 'get_by_placeholder':
-                    self._verify_by_placeholder(field_type, locator, expected_value, field_iframe, timeout)
-                
-                elif method == 'locator':
-                    self._verify_by_locator(field_type, locator, expected_value, field_iframe, timeout)
-                
-                else:
-                    raise ValueError(f"Unknown method '{method}' for field '{field_name}'")
-                
-                logger.success(f"✓ Field '{field_name}' verified successfully")
-                
-        except AssertionError as e:
-            logger.error(f"✗ Verification failed for field '{field_name}': {str(e)}")
-            raise
+        if should_be_checked:
+            expect(element).to_be_checked(timeout=timeout)
+        else:
+            expect(element).not_to_be_checked(timeout=timeout)
         
-        except Exception as e:
-            logger.error(f"✗ Unexpected error verifying field '{field_name}': {str(e)}")
-            raise
-    
-    logger.success("✅ All form data verified successfully")
+        logger.success(f"✓ Checkbox '{name}' is {state}")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
 
 
-def _verify_by_label(self, field_type: str, locator: str, expected_value: Any, exact: bool, iframe_locator: Optional[str], timeout: int):
-    """Verify field using get_by_label - delegates to iframe-aware generic methods"""
-    
-    if field_type in ['textbox', 'textarea']:
-        self.actions.verify_textbox_by_label(
-            label=locator,
-            expected_value=str(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    elif field_type == 'checkbox':
-        self.actions.verify_checkbox_by_label(
-            label=locator,
-            should_be_checked=bool(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    elif field_type == 'radio':
-        self.actions.verify_radio_by_label(
-            label=locator,
-            should_be_checked=bool(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    else:
-        raise ValueError(f"Unsupported field type '{field_type}' for get_by_label verification")
+@iframe_aware
+@allure.step("Verify checkbox by locator: {locator}")
+def verify_checkbox_by_locator(
+    self,
+    locator: str,
+    should_be_checked: bool,
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """Verify checkbox state using direct locator"""
+    try:
+        state = "checked" if should_be_checked else "unchecked"
+        logger.info(f"Verifying checkbox '{locator}' is {state}")
+        element = self.page.locator(locator)
+        
+        if should_be_checked:
+            expect(element).to_be_checked(timeout=timeout)
+        else:
+            expect(element).not_to_be_checked(timeout=timeout)
+        
+        logger.success(f"✓ Checkbox '{locator}' is {state}")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
 
 
-def _verify_by_role(self, field_type: str, locator: str, expected_value: Any, exact: bool, iframe_locator: Optional[str], timeout: int):
-    """Verify field using get_by_role - delegates to iframe-aware generic methods"""
-    
-    if field_type == 'textbox':
-        self.actions.verify_textbox_by_role(
-            name=locator,
-            expected_value=str(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    elif field_type == 'checkbox':
-        self.actions.verify_checkbox_by_role(
-            name=locator,
-            should_be_checked=bool(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    elif field_type == 'button':
-        self.actions.verify_button_by_role(
-            name=locator,
-            should_be_visible=bool(expected_value),
-            iframe_locator=iframe_locator,
-            exact=exact,
-            timeout=timeout
-        )
-    
-    else:
-        raise ValueError(f"Unsupported field type '{field_type}' for get_by_role verification")
+@iframe_aware
+@allure.step("Verify radio by label: {label}")
+def verify_radio_by_label(
+    self,
+    label: str,
+    should_be_checked: bool,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify radio button state using label"""
+    try:
+        logger.info(f"Verifying radio '{label}' is checked: {should_be_checked}")
+        element = self.page.get_by_label(label, exact=exact)
+        expect(element).to_be_checked(timeout=timeout)
+        logger.success(f"✓ Radio '{label}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
 
 
-def _verify_by_placeholder(self, field_type: str, locator: str, expected_value: Any, iframe_locator: Optional[str], timeout: int):
-    """Verify field using get_by_placeholder - delegates to iframe-aware generic methods"""
-    
-    if field_type in ['textbox', 'textarea']:
-        self.actions.verify_textbox_by_placeholder(
-            placeholder=locator,
-            expected_value=str(expected_value),
-            iframe_locator=iframe_locator,
-            timeout=timeout
-        )
-    else:
-        raise ValueError(f"Unsupported field type '{field_type}' for get_by_placeholder verification")
+@iframe_aware
+@allure.step("Verify radio by locator: {locator}")
+def verify_radio_by_locator(
+    self,
+    locator: str,
+    should_be_checked: bool,
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """Verify radio button state using direct locator"""
+    try:
+        logger.info(f"Verifying radio '{locator}' is checked: {should_be_checked}")
+        element = self.page.locator(locator)
+        expect(element).to_be_checked(timeout=timeout)
+        logger.success(f"✓ Radio '{locator}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
 
 
-def _verify_by_locator(self, field_type: str, locator: str, expected_value: Any, iframe_locator: Optional[str], timeout: int):
-    """Verify field using direct locator - delegates to iframe-aware generic methods"""
-    
-    if field_type in ['textbox', 'textarea']:
-        self.actions.verify_textbox_by_locator(
-            locator=locator,
-            expected_value=str(expected_value),
-            iframe_locator=iframe_locator,
-            timeout=timeout
-        )
-    
-    elif field_type == 'checkbox':
-        self.actions.verify_checkbox_by_locator(
-            locator=locator,
-            should_be_checked=bool(expected_value),
-            iframe_locator=iframe_locator,
-            timeout=timeout
-        )
-    
-    elif field_type == 'radio':
-        self.actions.verify_radio_by_locator(
-            locator=locator,
-            should_be_checked=bool(expected_value),
-            iframe_locator=iframe_locator,
-            timeout=timeout
-        )
-    
-    else:
-        raise ValueError(f"Unsupported field type '{field_type}' for locator verification")
+@iframe_aware
+@allure.step("Verify button by role: {name}")
+def verify_button_by_role(
+    self,
+    name: str,
+    should_be_visible: bool,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
+    """Verify button visibility using role"""
+    try:
+        logger.info(f"Verifying button '{name}' visibility: {should_be_visible}")
+        element = self.page.get_by_role("button", name=name, exact=exact)
+        
+        if should_be_visible:
+            expect(element).to_be_visible(timeout=timeout)
+        else:
+            expect(element).not_to_be_visible(timeout=timeout)
+        
+        logger.success(f"✓ Button '{name}' verified")
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
+        raise
