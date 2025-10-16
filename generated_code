@@ -11,25 +11,7 @@ def verify_form_data(
     
     Args:
         field_mapping: Dictionary mapping field names to their configuration
-            Example: {
-                'account_name': {
-                    'cell_name': 'Account Name',
-                    'type': 'textbox',
-                    'method': 'cell',
-                    'iframe_locator': '#iframeView'
-                },
-                'username': {
-                    'locator': 'Username',
-                    'type': 'textbox',
-                    'method': 'get_by_label',
-                    'exact': False
-                }
-            }
         expected_data: Dictionary containing expected values to verify
-            Example: {
-                'account_name': 'TEST_AT_PR1',
-                'username': 'john_doe'
-            }
         iframe_locator: Optional iframe locator for fields inside iframe (can be overridden per field)
         timeout: Timeout for assertions in milliseconds (default: 5000)
     """
@@ -60,7 +42,7 @@ def verify_form_data(
                     
                     logger.info(f"Verifying cell-based field: '{field_name}' (cell: '{cell_name}')")
                     
-                    # Use iframe-aware cell verification
+                    # Call GenericActions method which has @iframe_aware decorator
                     self.actions.verify_by_cell(
                         cell_name=cell_name,
                         field_type=field_type,
@@ -70,117 +52,28 @@ def verify_form_data(
                     )
                 
                 # ==========================================
-                # HANDLE GET_BY_LABEL VERIFICATION
+                # HANDLE OTHER METHODS
                 # ==========================================
-                elif method == 'get_by_label':
-                    locator = field_config['locator']
-                    exact = field_config.get('exact', False)
-                    
-                    # Handle dynamic locators (e.g., radio buttons with {value})
-                    if '{' in locator and isinstance(expected_value, str):
-                        locator = locator.format(value=expected_value)
-                    
-                    logger.info(f"Verifying by label: '{field_name}' (label: '{locator}')")
-                    
-                    # Get element using label
-                    element = self._get_element_by_method(
-                        method='get_by_label',
-                        field_type=field_type,
-                        locator=locator,
-                        exact=exact,
-                        iframe_locator=field_iframe
-                    )
-                    
-                    # Verify value
-                    self._verify_field_value(element, field_type, expected_value, timeout)
-                
-                # ==========================================
-                # HANDLE GET_BY_PLACEHOLDER VERIFICATION
-                # ==========================================
-                elif method == 'get_by_placeholder':
-                    locator = field_config['locator']
-                    
-                    logger.info(f"Verifying by placeholder: '{field_name}' (placeholder: '{locator}')")
-                    
-                    # Get element using placeholder
-                    element = self._get_element_by_method(
-                        method='get_by_placeholder',
-                        field_type=field_type,
-                        locator=locator,
-                        exact=False,
-                        iframe_locator=field_iframe
-                    )
-                    
-                    # Verify value
-                    self._verify_field_value(element, field_type, expected_value, timeout)
-                
-                # ==========================================
-                # HANDLE GET_BY_ROLE VERIFICATION
-                # ==========================================
-                elif method == 'get_by_role':
-                    locator = field_config['locator']
-                    exact = field_config.get('exact', False)
-                    
-                    logger.info(f"Verifying by role: '{field_name}' (role: '{field_type}', name: '{locator}')")
-                    
-                    # Get element using role
-                    element = self._get_element_by_method(
-                        method='get_by_role',
-                        field_type=field_type,
-                        locator=locator,
-                        exact=exact,
-                        iframe_locator=field_iframe
-                    )
-                    
-                    # Verify value
-                    self._verify_field_value(element, field_type, expected_value, timeout)
-                
-                # ==========================================
-                # HANDLE GET_BY_TEXT VERIFICATION
-                # ==========================================
-                elif method == 'get_by_text':
-                    locator = field_config['locator']
-                    exact = field_config.get('exact', False)
-                    
-                    logger.info(f"Verifying by text: '{field_name}' (text: '{locator}')")
-                    
-                    # Get element using text
-                    element = self._get_element_by_method(
-                        method='get_by_text',
-                        field_type=field_type,
-                        locator=locator,
-                        exact=exact,
-                        iframe_locator=field_iframe
-                    )
-                    
-                    # Verify visibility/enabled state
-                    if field_type in ['link', 'button']:
-                        if bool(expected_value):
-                            expect(element).to_be_visible(timeout=timeout)
-                    else:
-                        self._verify_field_value(element, field_type, expected_value, timeout)
-                
-                # ==========================================
-                # HANDLE DIRECT LOCATOR VERIFICATION (CSS/XPATH)
-                # ==========================================
-                else:  # method == 'locator' or any other
+                else:
+                    # Get locator
                     locator = field_config.get('locator')
+                    exact = field_config.get('exact', False)
                     
-                    if not locator:
+                    if not locator and method != 'cell':
                         raise ValueError(f"Field '{field_name}' missing 'locator' in config")
                     
                     # Handle dynamic locators
-                    if '{' in locator and isinstance(expected_value, str):
+                    if locator and '{' in locator and isinstance(expected_value, str):
                         locator = locator.format(value=expected_value)
                     
-                    logger.info(f"Verifying by locator: '{field_name}' (locator: '{locator}')")
+                    logger.info(f"Verifying field: '{field_name}' using method: '{method}'")
                     
-                    # Get element using direct locator
+                    # Get element based on method
                     element = self._get_element_by_method(
-                        method='locator',
+                        method=method,
                         field_type=field_type,
                         locator=locator,
-                        exact=False,
+                        exact=exact,
                         iframe_locator=field_iframe
                     )
                     
@@ -191,42 +84,78 @@ def verify_form_data(
                 
         except AssertionError as e:
             logger.error(f"✗ Verification failed for field '{field_name}': {str(e)}")
-            
-            # Attach error details to Allure report
-            allure.attach(
-                f"Field: {field_name}\n"
-                f"Expected: {expected_value}\n"
-                f"Method: {method}\n"
-                f"Error: {str(e)}",
-                name=f"Verification Failed: {field_name}",
-                attachment_type=allure.attachment_type.TEXT
-            )
-            
-            # Take screenshot for debugging
-            try:
-                screenshot_bytes = self.page.screenshot(full_page=True)
-                allure.attach(
-                    screenshot_bytes,
-                    name=f"Error Screenshot: {field_name}",
-                    attachment_type=allure.attachment_type.PNG
-                )
-            except Exception as screenshot_error:
-                logger.warning(f"Failed to capture screenshot: {screenshot_error}")
-            
             raise
         
         except Exception as e:
             logger.error(f"✗ Unexpected error verifying field '{field_name}': {str(e)}")
-            
-            allure.attach(
-                str(e),
-                name=f"Unexpected Error: {field_name}",
-                attachment_type=allure.attachment_type.TEXT
-            )
             raise
     
     logger.success("✅ All form data verified successfully")
 
+
+def _get_element_by_method(
+    self, 
+    method: str, 
+    field_type: str, 
+    locator: str, 
+    exact: bool, 
+    iframe_locator: Optional[str] = None
+):
+    """
+    Get element based on locator method - manually handles iframe context
+    Does NOT use @iframe_aware decorator (that's only in GenericActions)
+    """
+    
+    # Manually get the correct context (page or iframe)
+    context = self.page.frame_locator(iframe_locator) if iframe_locator else self.page
+    
+    if method == 'get_by_label':
+        return context.get_by_label(locator, exact=exact)
+    
+    elif method == 'get_by_placeholder':
+        return context.get_by_placeholder(locator)
+    
+    elif method == 'get_by_role':
+        return context.get_by_role(field_type, name=locator, exact=exact)
+    
+    elif method == 'get_by_text':
+        return context.get_by_text(locator, exact=exact)
+    
+    else:  # method == 'locator' (CSS/XPath)
+        return context.locator(locator)
+
+
+def _verify_field_value(
+    self, 
+    element, 
+    field_type: str, 
+    expected_value: Any, 
+    timeout: int
+):
+    """Verify field value based on type"""
+    
+    if field_type in ['textbox', 'textarea', 'searchbox', 'spinbutton']:
+        expect(element).to_have_value(str(expected_value), timeout=timeout)
+    
+    elif field_type == 'checkbox':
+        if bool(expected_value):
+            expect(element).to_be_checked(timeout=timeout)
+        else:
+            expect(element).not_to_be_checked(timeout=timeout)
+    
+    elif field_type == 'radio':
+        expect(element).to_be_checked(timeout=timeout)
+    
+    elif field_type in ['dropdown', 'combobox', 'select']:
+        expect(element).to_have_value(str(expected_value), timeout=timeout)
+    
+    elif field_type in ['link', 'button']:
+        if bool(expected_value):
+            expect(element).to_be_visible(timeout=timeout)
+    
+    else:
+        logger.warning(f"Unknown field type '{field_type}' for verification, defaulting to value check")
+        expect(element).to_have_value(str(expected_value), timeout=timeout)
 
 
 
