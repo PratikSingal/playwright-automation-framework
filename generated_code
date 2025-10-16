@@ -7,13 +7,13 @@ def verify_form_data(
 ) -> None:
     """
     Generic method to verify form data based on field type and method
-    Supports: get_by_label, get_by_placeholder, get_by_role, get_by_text, cell-based, and direct locators
+    Uses iframe-aware generic methods from GenericActions
     
     Args:
         field_mapping: Dictionary mapping field names to their configuration
         expected_data: Dictionary containing expected values to verify
-        iframe_locator: Optional iframe locator for fields inside iframe (can be overridden per field)
-        timeout: Timeout for assertions in milliseconds (default: 5000)
+        iframe_locator: Optional iframe locator for fields inside iframe
+        timeout: Timeout for assertions in milliseconds
     """
     logger.info("Starting to verify form data")
     
@@ -32,53 +32,32 @@ def verify_form_data(
         try:
             with allure.step(f"Verifying field: {field_name} = {expected_value}"):
                 
-                # ==========================================
-                # HANDLE CELL-BASED VERIFICATION
-                # ==========================================
-                if method == 'cell':
-                    cell_name = field_config.get('cell_name')
-                    if not cell_name:
-                        raise ValueError(f"Field '{field_name}' uses 'cell' method but missing 'cell_name'")
-                    
-                    logger.info(f"Verifying cell-based field: '{field_name}' (cell: '{cell_name}')")
-                    
-                    # Call GenericActions method which has @iframe_aware decorator
-                    self.actions.verify_by_cell(
-                        cell_name=cell_name,
-                        field_type=field_type,
-                        expected_value=expected_value,
-                        iframe_locator=field_iframe,
-                        timeout=timeout
-                    )
+                # Get locator and exact match setting
+                locator = field_config.get('locator')
+                exact = field_config.get('exact', False)
+                
+                # Handle dynamic locators
+                if locator and '{' in locator and isinstance(expected_value, str):
+                    locator = locator.format(value=expected_value)
                 
                 # ==========================================
-                # HANDLE OTHER METHODS
+                # ROUTE TO APPROPRIATE GENERIC METHOD
                 # ==========================================
+                
+                if method == 'get_by_label':
+                    self._verify_by_label(field_type, locator, expected_value, exact, field_iframe, timeout)
+                
+                elif method == 'get_by_role':
+                    self._verify_by_role(field_type, locator, expected_value, exact, field_iframe, timeout)
+                
+                elif method == 'get_by_placeholder':
+                    self._verify_by_placeholder(field_type, locator, expected_value, field_iframe, timeout)
+                
+                elif method == 'locator':
+                    self._verify_by_locator(field_type, locator, expected_value, field_iframe, timeout)
+                
                 else:
-                    # Get locator
-                    locator = field_config.get('locator')
-                    exact = field_config.get('exact', False)
-                    
-                    if not locator and method != 'cell':
-                        raise ValueError(f"Field '{field_name}' missing 'locator' in config")
-                    
-                    # Handle dynamic locators
-                    if locator and '{' in locator and isinstance(expected_value, str):
-                        locator = locator.format(value=expected_value)
-                    
-                    logger.info(f"Verifying field: '{field_name}' using method: '{method}'")
-                    
-                    # Get element based on method
-                    element = self._get_element_by_method(
-                        method=method,
-                        field_type=field_type,
-                        locator=locator,
-                        exact=exact,
-                        iframe_locator=field_iframe
-                    )
-                    
-                    # Verify value
-                    self._verify_field_value(element, field_type, expected_value, timeout)
+                    raise ValueError(f"Unknown method '{method}' for field '{field_name}'")
                 
                 logger.success(f"✓ Field '{field_name}' verified successfully")
                 
@@ -93,93 +72,114 @@ def verify_form_data(
     logger.success("✅ All form data verified successfully")
 
 
-def _get_element_by_method(
-    self, 
-    method: str, 
-    field_type: str, 
-    locator: str, 
-    exact: bool, 
-    iframe_locator: Optional[str] = None
-):
-    """
-    Get element based on locator method - manually handles iframe context
-    Does NOT use @iframe_aware decorator (that's only in GenericActions)
-    """
+def _verify_by_label(self, field_type: str, locator: str, expected_value: Any, exact: bool, iframe_locator: Optional[str], timeout: int):
+    """Verify field using get_by_label - delegates to iframe-aware generic methods"""
     
-    # Manually get the correct context (page or iframe)
-    context = self.page.frame_locator(iframe_locator) if iframe_locator else self.page
-    
-    if method == 'get_by_label':
-        return context.get_by_label(locator, exact=exact)
-    
-    elif method == 'get_by_placeholder':
-        return context.get_by_placeholder(locator)
-    
-    elif method == 'get_by_role':
-        return context.get_by_role(field_type, name=locator, exact=exact)
-    
-    elif method == 'get_by_text':
-        return context.get_by_text(locator, exact=exact)
-    
-    else:  # method == 'locator' (CSS/XPath)
-        return context.locator(locator)
-
-
-def _verify_field_value(
-    self, 
-    element, 
-    field_type: str, 
-    expected_value: Any, 
-    timeout: int
-):
-    """Verify field value based on type"""
-    
-    if field_type in ['textbox', 'textarea', 'searchbox', 'spinbutton']:
-        expect(element).to_have_value(str(expected_value), timeout=timeout)
+    if field_type in ['textbox', 'textarea']:
+        self.actions.verify_textbox_by_label(
+            label=locator,
+            expected_value=str(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
     
     elif field_type == 'checkbox':
-        if bool(expected_value):
-            expect(element).to_be_checked(timeout=timeout)
-        else:
-            expect(element).not_to_be_checked(timeout=timeout)
+        self.actions.verify_checkbox_by_label(
+            label=locator,
+            should_be_checked=bool(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
     
     elif field_type == 'radio':
-        expect(element).to_be_checked(timeout=timeout)
-    
-    elif field_type in ['dropdown', 'combobox', 'select']:
-        expect(element).to_have_value(str(expected_value), timeout=timeout)
-    
-    elif field_type in ['link', 'button']:
-        if bool(expected_value):
-            expect(element).to_be_visible(timeout=timeout)
+        self.actions.verify_radio_by_label(
+            label=locator,
+            should_be_checked=bool(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
     
     else:
-        logger.warning(f"Unknown field type '{field_type}' for verification, defaulting to value check")
-        expect(element).to_have_value(str(expected_value), timeout=timeout)
+        raise ValueError(f"Unsupported field type '{field_type}' for get_by_label verification")
 
 
+def _verify_by_role(self, field_type: str, locator: str, expected_value: Any, exact: bool, iframe_locator: Optional[str], timeout: int):
+    """Verify field using get_by_role - delegates to iframe-aware generic methods"""
+    
+    if field_type == 'textbox':
+        self.actions.verify_textbox_by_role(
+            name=locator,
+            expected_value=str(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
+    
+    elif field_type == 'checkbox':
+        self.actions.verify_checkbox_by_role(
+            name=locator,
+            should_be_checked=bool(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
+    
+    elif field_type == 'button':
+        self.actions.verify_button_by_role(
+            name=locator,
+            should_be_visible=bool(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout
+        )
+    
+    else:
+        raise ValueError(f"Unsupported field type '{field_type}' for get_by_role verification")
 
-# Type 1: Cell-based
-'field_name': {
-    'cell_name': 'Cell Text Here',
-    'type': 'textbox',  # or 'checkbox', 'button'
-    'method': 'cell',
-    'iframe_locator': '#iframeView'  # optional
-}
 
-# Type 2: Label-based
-'field_name': {
-    'locator': 'Label Text Here',
-    'type': 'textbox',  # or 'dropdown', 'checkbox'
-    'method': 'get_by_label',
-    'exact': False,  # optional
-    'iframe_locator': '#iframeView'  # optional
-}
+def _verify_by_placeholder(self, field_type: str, locator: str, expected_value: Any, iframe_locator: Optional[str], timeout: int):
+    """Verify field using get_by_placeholder - delegates to iframe-aware generic methods"""
+    
+    if field_type in ['textbox', 'textarea']:
+        self.actions.verify_textbox_by_placeholder(
+            placeholder=locator,
+            expected_value=str(expected_value),
+            iframe_locator=iframe_locator,
+            timeout=timeout
+        )
+    else:
+        raise ValueError(f"Unsupported field type '{field_type}' for get_by_placeholder verification")
 
-# Type 3: Direct locator
-'field_name': {
-    'locator': '#elementId',  # or '.class' or 'xpath=//element'
-    'type': 'textbox',  # or 'button', 'dropdown', 'checkbox'
-    'method': 'locator',
-    'iframe_locator': '#iframeView'  # optional
-}
+
+def _verify_by_locator(self, field_type: str, locator: str, expected_value: Any, iframe_locator: Optional[str], timeout: int):
+    """Verify field using direct locator - delegates to iframe-aware generic methods"""
+    
+    if field_type in ['textbox', 'textarea']:
+        self.actions.verify_textbox_by_locator(
+            locator=locator,
+            expected_value=str(expected_value),
+            iframe_locator=iframe_locator,
+            timeout=timeout
+        )
+    
+    elif field_type == 'checkbox':
+        self.actions.verify_checkbox_by_locator(
+            locator=locator,
+            should_be_checked=bool(expected_value),
+            iframe_locator=iframe_locator,
+            timeout=timeout
+        )
+    
+    elif field_type == 'radio':
+        self.actions.verify_radio_by_locator(
+            locator=locator,
+            should_be_checked=bool(expected_value),
+            iframe_locator=iframe_locator,
+            timeout=timeout
+        )
+    
+    else:
+        raise ValueError(f"Unsupported field type '{field_type}' for locator verification")
