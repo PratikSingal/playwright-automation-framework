@@ -1,16 +1,41 @@
 @iframe_aware
-@allure.step("Click button: {name}")
-def click_button(self, name: str, iframe_locator: Optional[str] = None, exact: bool = False) -> None:
-    """Click button by accessible name"""
+@allure.step("Validate dropdown has {expected_count} items for search context")
+def validate_dropdown_item_count(
+    self, 
+    expected_count: int, 
+    parent_class: str = "car-context-quick-search-list",
+    iframe_locator: Optional[str] = None
+) -> None:
+    """
+    Validate the number of items in a specific dropdown
+    
+    Args:
+        expected_count: Expected number of dropdown items
+        parent_class: The unique parent class to identify the dropdown
+        iframe_locator: Optional iframe locator
+    """
     try:
-        logger.info(f"Clicking button '{name}'")
-        logger.debug(f"Type of self.page: {type(self.page)}")
-        logger.debug(f"iframe_locator: {iframe_locator}")
+        logger.info(f"Validating dropdown has {expected_count} items")
         
-        self.page.get_by_role("button", name=name, exact=exact).click()
+        # Target items within the specific parent container
+        items = self.page.locator(f".{parent_class} li.ui-menu-item")
         
-        logger.success(f"Clicked button '{name}'")
+        # Wait for items to appear if count > 0
+        if expected_count > 0:
+            items.first.wait_for(state="visible", timeout=5000)
+        
+        # Count visible items
+        actual_count = items.count()
+        
+        logger.info(f"Found {actual_count} dropdown items in '.{parent_class}'")
+        
+        # Validate count
+        assert actual_count == expected_count, \
+            f"Expected {expected_count} dropdown items, but found {actual_count}"
+        
+        logger.success(f"✓ Dropdown has correct number of items: {expected_count}")
+        
     except Exception as e:
-        logger.error(f"Failed to click button '{name}': {str(e)}")
-        logger.error(f"Type of self.page at error: {type(self.page)}")
+        logger.error(f"Failed to validate dropdown count: {str(e)}")
+        self.page.screenshot(path="dropdown_validation_error.png")
         raise
