@@ -1,131 +1,3 @@
-# ==================== CELL-BASED METHODS WITH IFRAME_AWARE ====================
-
-@iframe_aware
-@allure.step("Fill field in cell: {cell_name} -> {value}")
-def fill_by_cell(
-    self, 
-    cell_name: str, 
-    field_type: str, 
-    value: Any,
-    iframe_locator: Optional[str] = None
-) -> None:
-    """
-    Fill field using cell-based navigation (iframe aware)
-    Pattern: get_by_role("cell", name="Cell Name").get_by_role("textbox")
-    
-    Args:
-        cell_name: Name/text of the cell to find
-        field_type: Role of element to find within cell (textbox, checkbox, button, etc.)
-        value: Value to fill/set
-        iframe_locator: Optional iframe locator (handled by decorator)
-    """
-    try:
-        logger.info(f"Filling {field_type} in cell '{cell_name}' with value '{value}'")
-        
-        # Navigate to cell
-        cell = self.page.get_by_role("cell", name=cell_name)
-        
-        # Find element within cell by role (no name needed)
-        element = cell.get_by_role(field_type)
-        
-        # Fill based on field type
-        if field_type in ['textbox', 'searchbox', 'spinbutton']:
-            element.fill(str(value))
-        elif field_type == 'checkbox':
-            if bool(value):
-                element.check()
-            else:
-                element.uncheck()
-        elif field_type == 'button':
-            element.click()
-        elif field_type == 'combobox':
-            element.select_option(str(value))
-        else:
-            element.fill(str(value))  # Default to fill
-        
-        logger.success(f"✓ Filled {field_type} in cell '{cell_name}'")
-        
-    except Exception as e:
-        logger.error(f"✗ Failed to fill field in cell '{cell_name}': {str(e)}")
-        raise
-
-
-@iframe_aware
-@allure.step("Verify field in cell: {cell_name} = {expected_value}")
-def verify_by_cell(
-    self,
-    cell_name: str,
-    field_type: str,
-    expected_value: Any,
-    iframe_locator: Optional[str] = None,
-    timeout: int = 5000
-) -> None:
-    """
-    Verify field value using cell-based navigation (iframe aware)
-    Pattern: get_by_role("cell", name="Cell Name").get_by_role("textbox")
-    
-    Args:
-        cell_name: Name/text of the cell to find
-        field_type: Role of element to find within cell
-        expected_value: Expected value to verify
-        iframe_locator: Optional iframe locator (handled by decorator)
-        timeout: Assertion timeout
-    """
-    try:
-        logger.info(f"Verifying {field_type} in cell '{cell_name}' = '{expected_value}'")
-        
-        # Navigate to cell
-        cell = self.page.get_by_role("cell", name=cell_name)
-        
-        # Find element within cell by role
-        element = cell.get_by_role(field_type)
-        
-        # Verify based on field type
-        if field_type in ['textbox', 'searchbox', 'spinbutton', 'combobox']:
-            expect(element).to_have_value(str(expected_value), timeout=timeout)
-        elif field_type == 'checkbox':
-            if bool(expected_value):
-                expect(element).to_be_checked(timeout=timeout)
-            else:
-                expect(element).not_to_be_checked(timeout=timeout)
-        elif field_type == 'button':
-            if bool(expected_value):
-                expect(element).to_be_visible(timeout=timeout)
-        else:
-            expect(element).to_have_value(str(expected_value), timeout=timeout)
-        
-        logger.success(f"✓ Verified {field_type} in cell '{cell_name}'")
-        
-    except AssertionError as e:
-        logger.error(f"✗ Verification failed for cell '{cell_name}': {str(e)}")
-        self.page.screenshot(path=f"error_verify_cell_{cell_name.replace(' ', '_')}.png")
-        raise
-
-
-
-def _fill_by_locator(self, field_type: str, locator: str, value: Any, field_config: Dict) -> None:
-    """Fill field using traditional CSS/XPath locator or handle special dropdown types"""
-    
-    # Check if this is a cell-based field
-    if field_config.get('method') == 'cell':
-        cell_name = field_config.get('cell_name')
-        iframe_loc = field_config.get('iframe_locator')
-        
-        if not cell_name:
-            raise ValueError("Cell method requires 'cell_name' in field config")
-        
-        # Use the iframe-aware cell method
-        self.actions.fill_by_cell(
-            cell_name=cell_name,
-            field_type=field_type,
-            value=value,
-            iframe_locator=iframe_loc
-        )
-        return  # Exit early
-    
-    # ... rest of your existing _fill_by_locator code for dropdowns, textboxes, etc.
-
-
 def verify_form_data(
     self, 
     field_mapping: Dict[str, Any], 
@@ -135,6 +7,31 @@ def verify_form_data(
 ) -> None:
     """
     Generic method to verify form data based on field type and method
+    Supports: get_by_label, get_by_placeholder, get_by_role, get_by_text, cell-based, and direct locators
+    
+    Args:
+        field_mapping: Dictionary mapping field names to their configuration
+            Example: {
+                'account_name': {
+                    'cell_name': 'Account Name',
+                    'type': 'textbox',
+                    'method': 'cell',
+                    'iframe_locator': '#iframeView'
+                },
+                'username': {
+                    'locator': 'Username',
+                    'type': 'textbox',
+                    'method': 'get_by_label',
+                    'exact': False
+                }
+            }
+        expected_data: Dictionary containing expected values to verify
+            Example: {
+                'account_name': 'TEST_AT_PR1',
+                'username': 'john_doe'
+            }
+        iframe_locator: Optional iframe locator for fields inside iframe (can be overridden per field)
+        timeout: Timeout for assertions in milliseconds (default: 5000)
     """
     logger.info("Starting to verify form data")
     
@@ -151,13 +48,17 @@ def verify_form_data(
         field_iframe = field_config.get('iframe_locator', iframe_locator)
         
         try:
-            with allure.step(f"Verifying field: {field_name}"):
+            with allure.step(f"Verifying field: {field_name} = {expected_value}"):
                 
+                # ==========================================
                 # HANDLE CELL-BASED VERIFICATION
+                # ==========================================
                 if method == 'cell':
                     cell_name = field_config.get('cell_name')
                     if not cell_name:
                         raise ValueError(f"Field '{field_name}' uses 'cell' method but missing 'cell_name'")
+                    
+                    logger.info(f"Verifying cell-based field: '{field_name}' (cell: '{cell_name}')")
                     
                     # Use iframe-aware cell verification
                     self.actions.verify_by_cell(
@@ -168,39 +69,165 @@ def verify_form_data(
                         timeout=timeout
                     )
                 
-                # HANDLE STANDARD VERIFICATION (existing code)
+                # ==========================================
+                # HANDLE GET_BY_LABEL VERIFICATION
+                # ==========================================
                 elif method == 'get_by_label':
                     locator = field_config['locator']
                     exact = field_config.get('exact', False)
+                    
+                    # Handle dynamic locators (e.g., radio buttons with {value})
                     if '{' in locator and isinstance(expected_value, str):
                         locator = locator.format(value=expected_value)
                     
-                    element = self._get_element_by_method(method, field_type, locator, exact, field_iframe)
+                    logger.info(f"Verifying by label: '{field_name}' (label: '{locator}')")
+                    
+                    # Get element using label
+                    element = self._get_element_by_method(
+                        method='get_by_label',
+                        field_type=field_type,
+                        locator=locator,
+                        exact=exact,
+                        iframe_locator=field_iframe
+                    )
+                    
+                    # Verify value
                     self._verify_field_value(element, field_type, expected_value, timeout)
                 
-                # ... other methods (get_by_placeholder, get_by_role, etc.)
+                # ==========================================
+                # HANDLE GET_BY_PLACEHOLDER VERIFICATION
+                # ==========================================
+                elif method == 'get_by_placeholder':
+                    locator = field_config['locator']
+                    
+                    logger.info(f"Verifying by placeholder: '{field_name}' (placeholder: '{locator}')")
+                    
+                    # Get element using placeholder
+                    element = self._get_element_by_method(
+                        method='get_by_placeholder',
+                        field_type=field_type,
+                        locator=locator,
+                        exact=False,
+                        iframe_locator=field_iframe
+                    )
+                    
+                    # Verify value
+                    self._verify_field_value(element, field_type, expected_value, timeout)
                 
-                else:
-                    locator = field_config.get('locator')
+                # ==========================================
+                # HANDLE GET_BY_ROLE VERIFICATION
+                # ==========================================
+                elif method == 'get_by_role':
+                    locator = field_config['locator']
                     exact = field_config.get('exact', False)
-                    if locator and '{' in locator and isinstance(expected_value, str):
+                    
+                    logger.info(f"Verifying by role: '{field_name}' (role: '{field_type}', name: '{locator}')")
+                    
+                    # Get element using role
+                    element = self._get_element_by_method(
+                        method='get_by_role',
+                        field_type=field_type,
+                        locator=locator,
+                        exact=exact,
+                        iframe_locator=field_iframe
+                    )
+                    
+                    # Verify value
+                    self._verify_field_value(element, field_type, expected_value, timeout)
+                
+                # ==========================================
+                # HANDLE GET_BY_TEXT VERIFICATION
+                # ==========================================
+                elif method == 'get_by_text':
+                    locator = field_config['locator']
+                    exact = field_config.get('exact', False)
+                    
+                    logger.info(f"Verifying by text: '{field_name}' (text: '{locator}')")
+                    
+                    # Get element using text
+                    element = self._get_element_by_method(
+                        method='get_by_text',
+                        field_type=field_type,
+                        locator=locator,
+                        exact=exact,
+                        iframe_locator=field_iframe
+                    )
+                    
+                    # Verify visibility/enabled state
+                    if field_type in ['link', 'button']:
+                        if bool(expected_value):
+                            expect(element).to_be_visible(timeout=timeout)
+                    else:
+                        self._verify_field_value(element, field_type, expected_value, timeout)
+                
+                # ==========================================
+                # HANDLE DIRECT LOCATOR VERIFICATION (CSS/XPATH)
+                # ==========================================
+                else:  # method == 'locator' or any other
+                    locator = field_config.get('locator')
+                    
+                    if not locator:
+                        raise ValueError(f"Field '{field_name}' missing 'locator' in config")
+                    
+                    # Handle dynamic locators
+                    if '{' in locator and isinstance(expected_value, str):
                         locator = locator.format(value=expected_value)
                     
-                    element = self._get_element_by_method(method, field_type, locator, exact, field_iframe)
+                    logger.info(f"Verifying by locator: '{field_name}' (locator: '{locator}')")
+                    
+                    # Get element using direct locator
+                    element = self._get_element_by_method(
+                        method='locator',
+                        field_type=field_type,
+                        locator=locator,
+                        exact=False,
+                        iframe_locator=field_iframe
+                    )
+                    
+                    # Verify value
                     self._verify_field_value(element, field_type, expected_value, timeout)
                 
-                logger.success(f"✓ Field '{field_name}' verified")
+                logger.success(f"✓ Field '{field_name}' verified successfully")
                 
         except AssertionError as e:
-            logger.error(f"✗ Verification failed for '{field_name}': {str(e)}")
+            logger.error(f"✗ Verification failed for field '{field_name}': {str(e)}")
+            
+            # Attach error details to Allure report
+            allure.attach(
+                f"Field: {field_name}\n"
+                f"Expected: {expected_value}\n"
+                f"Method: {method}\n"
+                f"Error: {str(e)}",
+                name=f"Verification Failed: {field_name}",
+                attachment_type=allure.attachment_type.TEXT
+            )
+            
+            # Take screenshot for debugging
+            try:
+                screenshot_bytes = self.page.screenshot(full_page=True)
+                allure.attach(
+                    screenshot_bytes,
+                    name=f"Error Screenshot: {field_name}",
+                    attachment_type=allure.attachment_type.PNG
+                )
+            except Exception as screenshot_error:
+                logger.warning(f"Failed to capture screenshot: {screenshot_error}")
+            
+            raise
+        
+        except Exception as e:
+            logger.error(f"✗ Unexpected error verifying field '{field_name}': {str(e)}")
+            
             allure.attach(
                 str(e),
-                name=f"Verification failed: {field_name}",
+                name=f"Unexpected Error: {field_name}",
                 attachment_type=allure.attachment_type.TEXT
             )
             raise
     
-    logger.success("All form data verified successfully")
+    logger.success("✅ All form data verified successfully")
+
+
 
 
 # Type 1: Cell-based
