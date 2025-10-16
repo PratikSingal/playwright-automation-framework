@@ -203,91 +203,27 @@ def verify_form_data(
     logger.success("All form data verified successfully")
 
 
-class NewAccountPage(BasePage):
-    """Page Object for New Account form in iframe"""
-    
-    # Locator constants
-    IFRAME_LOCATOR = "#iframeView"
-    
-    FIELD_MAPPING = {
-        # Cell-based fields from your snippet
-        'account_name': {
-            'cell_name': 'Account Name',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'add_branch': {
-            'cell_name': 'AddBranch',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'net': {
-            'cell_name': 'Net',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'principal_currency': {
-            'cell_name': 'Principal Currency',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'issb_main': {
-            'cell_name': 'ISSB_Main',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'ifb': {
-            'cell_name': 'IFB',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        },
-        
-        'other': {
-            'cell_name': 'Other',
-            'type': 'textbox',
-            'method': 'cell',
-            'iframe_locator': '#iframeView'
-        }
-    }
-    
-    def __init__(self, page: Page):
-        super().__init__(page)
-        logger.info("Initialized New Account Page")
-    
-    @allure.step("Open new account page")
-    def open(self, url: str) -> None:
-        """Navigate to new account page"""
-        self.navigate_to(url)
-        # Wait for iframe to load
-        self.page.wait_for_selector(self.IFRAME_LOCATOR, state="visible")
-        self.page.frame_locator(self.IFRAME_LOCATOR).locator("body").wait_for(state="visible")
-        logger.success("New account page loaded")
-    
-    @allure.step("Fill new account form")
-    def fill_new_account_form(self, data: Dict[str, Any]) -> None:
-        """Fill the new account form"""
-        logger.info("Filling new account form")
-        self.fill_form_data(self.FIELD_MAPPING, data)
-        logger.success("New account form filled")
-    
-    @allure.step("Verify new account form")
-    def verify_new_account_form(self, expected_data: Dict[str, Any]) -> None:
-        """Verify the new account form data"""
-        logger.info("Verifying new account form")
-        self.verify_form_data(
-            self.FIELD_MAPPING, 
-            expected_data,
-            iframe_locator=self.IFRAME_LOCATOR
-        )
-        logger.success("New account form verified")
+# Type 1: Cell-based
+'field_name': {
+    'cell_name': 'Cell Text Here',
+    'type': 'textbox',  # or 'checkbox', 'button'
+    'method': 'cell',
+    'iframe_locator': '#iframeView'  # optional
+}
+
+# Type 2: Label-based
+'field_name': {
+    'locator': 'Label Text Here',
+    'type': 'textbox',  # or 'dropdown', 'checkbox'
+    'method': 'get_by_label',
+    'exact': False,  # optional
+    'iframe_locator': '#iframeView'  # optional
+}
+
+# Type 3: Direct locator
+'field_name': {
+    'locator': '#elementId',  # or '.class' or 'xpath=//element'
+    'type': 'textbox',  # or 'button', 'dropdown', 'checkbox'
+    'method': 'locator',
+    'iframe_locator': '#iframeView'  # optional
+}
