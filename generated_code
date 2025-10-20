@@ -1,39 +1,147 @@
-@allure.step("Fill textbox: {locator} with value: {value}")
-def fill_textbox(self, locator: str, value: str, clear_first: bool=True, iframe_locator: str=None) -> None:
+@allure.step("Verify custom dropdown in iframe by label: {label_text} = {expected_value}")
+def verify_dropdown_in_iframe_by_label(
+    self,
+    label_text: str,
+    expected_value: str,
+    iframe_locator: str,
+    button_class: str = "PB_DropDownButton",
+    list_class: str = "PB_DropDownList",
+    exact: bool = False,
+    timeout: int = 5000
+) -> None:
     """
-    Fill a textbox with the given value
+    Verify custom dropdown value in iframe using label text
+    Counterpart to select_dropdown_in_iframe_by_label for filling
+    
+    Works when label and dropdown are in sibling <td> elements:
+    <tr>
+      <td><label>Account Entity</label></td>
+      <td>
+        <span class="PB_DropDownSPAN">
+          <input class="PB_DropDownInput" value="USPB" />
+          <img class="PB_DropDownButton" />
+        </span>
+      </td>
+    </tr>
     
     Args:
-        locator: CSS/XPath locator for the textbox
-        value: Value to fill
-        clear_first: Clear existing text before filling (default: True)
-        iframe_locator: Optional iframe locator (e.g., '#iframeView'). If None, works on main page
-    
-    Examples:
-        # Without iframe (main page)
-        actions.fill_textbox("#username", "john.doe")
-        
-        # With iframe
-        actions.fill_textbox("#username", "john.doe", iframe_locator="#iframeView")
+        label_text: Label text (e.g., 'Account Entity')
+        expected_value: Expected selected value to verify
+        iframe_locator: Iframe CSS selector (e.g., '#IframeView')
+        button_class: CSS class of button (default: PB_DropDownButton)
+        list_class: CSS class of dropdown list (default: PB_DropDownList)
+        exact: Exact text match
+        timeout: Assertion timeout
     """
     try:
-        logger.info(f"Filling textbox '{locator}' with value '{value}'" + 
-                   (f" in iframe '{iframe_locator}'" if iframe_locator else ""))
+        logger.info(f"Verifying dropdown with label '{label_text}' = '{expected_value}'")
         
-        # Choose context: iframe or main page
-        if iframe_locator:
-            frame = self.page.frame_locator(iframe_locator)
-            element = frame.locator(locator)
-        else:
-            element = self.page.locator(locator)
+        # Access iframe
+        frame = self.page.frame_locator(iframe_locator)
         
-        element.wait_for(state="visible", timeout=self.timeout)
+        # XPath to find the input: label → parent <td> → next sibling <td> → input
+        xpath_input = (
+            f'//label[contains(text(), "{label_text}")]'
+            f'/ancestor::td[1]'                              # Go up to <td> containing label
+            f'/following-sibling::td[1]'                     # Go to next <td>
+            f'//input[contains(@class, "PB_DropDownInput")]' # Find input
+        )
         
-        if clear_first:
-            element.clear()
+        logger.debug(f"Using XPath: {xpath_input}")
         
-        element.fill(value)
-        logger.success(f"Successfully filled textbox '{locator}'")
-    except Exception as e:
-        logger.error(f"Failed to fill textbox '{locator}': {str(e)}")
+        # Find the input element
+        dropdown_input = frame.locator(f'xpath={xpath_input}')
+        dropdown_input.wait_for(state="visible", timeout=timeout)
+        
+        # Verify the input value
+        expect(dropdown_input).to_have_value(expected_value, timeout=timeout)
+        
+        logger.success(f"✓ Dropdown '{label_text}' has correct value: '{expected_value}'")
+        
+    except AssertionError as e:
+        logger.error(f"✗ Dropdown verification failed for '{label_text}': {str(e)}")
         raise
+    except Exception as e:
+        logger.error(f"✗ Error verifying dropdown '{label_text}': {str(e)}")
+        raise
+
+
+def verify_form_data(
+    self, 
+    field_mapping: Dict[str, Any], 
+    expected_data: Dict[str, Any],
+    iframe_locator: Optional[str] = None,
+    timeout: int = 5000
+) -> None:
+    """Generic method to verify form data"""
+    logger.info("Starting to verify form data")
+    
+    for field_name, expected_value in expected_data.items():
+        if field_name not in field_mapping:
+            logger.warning(f"Field '{field_name}' not found in mapping, skipping verification")
+            continue
+        
+        field_config = field_mapping[field_name]
+        field_type = field_config['type'].lower()
+        method = field_config.get('method', 'locator')
+        
+        # Use iframe_locator from field config if present, otherwise use the parameter
+        field_iframe = field_config.get('iframe_locator', iframe_locator)
+        
+        try:
+            with allure.step(f"Verifying field: {field_name} = {expected_value}"):
+                
+                # ==========================================
+                # HANDLE CUSTOM DROPDOWN IN IFRAME
+                # ==========================================
+                if field_type == 'custom_dropdown_iframe':
+                    label = field_config.get('label')
+                    button_class = field_config.get('button_class', 'PB_DropDownButton')
+                    list_class = field_config.get('list_class', 'PB_DropDownList')
+                    exact = field_config.get('exact', False)
+                    
+                    if not label:
+                        raise ValueError(f"Field '{field_name}' missing 'label' for custom_dropdown_iframe")
+                    
+                    if not field_iframe:
+                        raise ValueError(f"Field '{field_name}' missing 'iframe_locator' for custom_dropdown_iframe")
+                    
+                    self.actions.verify_dropdown_in_iframe_by_label(
+                        label_text=label,
+                        expected_value=str(expected_value),
+                        iframe_locator=field_iframe,
+                        button_class=button_class,
+                        list_class=list_class,
+                        exact=exact,
+                        timeout=timeout
+                    )
+                
+                # ==========================================
+                # HANDLE OTHER METHODS
+                # ==========================================
+                elif method == 'get_by_label':
+                    self._verify_by_label(field_type, field_config.get('locator'), expected_value, 
+                                         field_config.get('exact', False), field_iframe, timeout)
+                
+                elif method == 'get_by_role':
+                    self._verify_by_role(field_type, field_config.get('locator'), expected_value,
+                                        field_config.get('exact', False), field_iframe, timeout)
+                
+                elif method == 'locator':
+                    self._verify_by_locator(field_type, field_config.get('locator'), expected_value,
+                                           field_iframe, timeout)
+                
+                else:
+                    raise ValueError(f"Unknown method '{method}' for field '{field_name}'")
+                
+                logger.success(f"✓ Field '{field_name}' verified successfully")
+                
+        except AssertionError as e:
+            logger.error(f"✗ Verification failed for field '{field_name}': {str(e)}")
+            raise
+        
+        except Exception as e:
+            logger.error(f"✗ Unexpected error verifying field '{field_name}': {str(e)}")
+            raise
+    
+    logger.success("✅ All form data verified successfully")
