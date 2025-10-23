@@ -1,67 +1,98 @@
-@allure.step("Select dropdown by label: {label}")
-def select_dropdown_by_label(
-    self, 
-    label: str, 
-    value: str = None,
-    label_text: str = None,
-    index: int = None,
-    exact: bool = False
+@iframe_aware
+@allure.step("Verify dropdown by label: {label} = {expected_value}")
+def verify_dropdown_by_label(
+    self,
+    label: str,
+    expected_value: str = None,
+    expected_label: str = None,
+    expected_index: int = None,
+    iframe_locator: Optional[str] = None,
+    exact: bool = False,
+    timeout: int = 5000,
+    index: int = 0
 ) -> None:
-    """Select dropdown option using associated label
+    """Verify dropdown value using label
     
     Args:
-        label: The label text associated with the dropdown
-        value: Select by option value attribute (optional)
-        label_text: Select by option visible text (optional)
-        index: Select by option index (optional)
-        exact: Whether to use exact match for label
+        label: Label text associated with the dropdown
+        expected_value: Expected option value attribute (optional)
+        expected_label: Expected option visible text (optional)
+        expected_index: Expected selected index (optional)
+        iframe_locator: Optional iframe locator
+        exact: Exact match for label
+        timeout: Timeout for assertion
+        index: Index if multiple dropdowns with same label
         
-    Note: Provide exactly one of: value, label_text, or index
+    Note: Provide exactly one of: expected_value, expected_label, or expected_index
     """
     try:
-        logger.info(f"Selecting from dropdown with label '{label}'")
-        dropdown = self.page.get_by_label(label, exact=exact)
-        dropdown.wait_for(state="visible", timeout=self.timeout)
+        logger.info(f"Verifying dropdown with label '{label}'")
         
-        # Select based on the provided parameter
-        if value is not None:
-            dropdown.select_option(value=value)
-            logger.success(f"Successfully selected option with value '{value}'")
-        elif label_text is not None:
-            dropdown.select_option(label=label_text)
-            logger.success(f"Successfully selected option with label '{label_text}'")
-        elif index is not None:
-            dropdown.select_option(index=index)
-            logger.success(f"Successfully selected option at index {index}")
-        else:
-            raise ValueError("Must provide one of: value, label_text, or index")
+        # Get the dropdown element
+        element = self.page.get_by_label(label, exact=exact).nth(index)
+        
+        # Verify based on what's expected
+        if expected_value is not None:
+            # Verify by option value attribute
+            expect(element).to_have_value(expected_value, timeout=timeout)
+            logger.success(f"✓ Dropdown '{label}' has value '{expected_value}'")
             
-    except Exception as e:
-        logger.error(f"Failed to select dropdown with label '{label}': {str(e)}")
+        elif expected_label is not None:
+            # Verify by visible text of selected option
+            selected_text = element.evaluate("""
+                element => {
+                    const selectedOption = element.options[element.selectedIndex];
+                    return selectedOption ? selectedOption.text : '';
+                }
+            """)
+            
+            if selected_text == expected_label:
+                logger.success(f"✓ Dropdown '{label}' shows '{expected_label}'")
+            else:
+                raise AssertionError(f"Expected label '{expected_label}', but got '{selected_text}'")
+                
+        elif expected_index is not None:
+            # Verify by selected index
+            selected_index = element.evaluate("element => element.selectedIndex")
+            
+            if selected_index == expected_index:
+                logger.success(f"✓ Dropdown '{label}' has index {expected_index} selected")
+            else:
+                raise AssertionError(f"Expected index {expected_index}, but got {selected_index}")
+        else:
+            raise ValueError("Must provide one of: expected_value, expected_label, or expected_index")
+            
+    except AssertionError as e:
+        logger.error(f"✗ Verification failed: {str(e)}")
         raise
 
-
-
-def _fill_by_label(self, field_type: str, locator: str, value: Any, exact: bool, field_config: Dict = None) -> None:
-    """Fill field using get_by_label"""
-    if field_type in ['textbox', 'textarea']:
-        self.actions.fill_by_label(locator, str(value), exact=exact)
-    elif field_type == 'checkbox':
-        if bool(value):
-            self.actions.check_by_label(locator, exact=exact)
-        else:
-            self.actions.uncheck_by_label(locator, exact=exact)
-    elif field_type == 'radio':
-        self.actions.check_by_label(locator, exact=exact)
-    elif field_type == 'dropdown':
-        # Handle dropdown with value/label/index flexibility
-        select_by = field_config.get('select_by', 'value') if field_config else 'value'
-        
-        if select_by == 'value':
-            self.actions.select_dropdown_by_label(locator, value=str(value), exact=exact)
-        elif select_by == 'label':
-            self.actions.select_dropdown_by_label(locator, label_text=str(value), exact=exact)
-        elif select_by == 'index':
-            self.actions.select_dropdown_by_label(locator, index=int(value), exact=exact)
-        else:
-            raise ValueError(f"Invalid select_by option: {select_by}. Use 'value', 'label', or 'index'")
+elif field_type == 'dropdown':
+    verify_by = field_config.get('verify_by', 'value') if field_config else 'value'
+    
+    if verify_by == 'value':
+        self.actions.verify_dropdown_by_label(
+            label=locator,
+            expected_value=str(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout,
+            index=index
+        )
+    elif verify_by == 'label':
+        self.actions.verify_dropdown_by_label(
+            label=locator,
+            expected_label=str(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout,
+            index=index
+        )
+    elif verify_by == 'index':
+        self.actions.verify_dropdown_by_label(
+            label=locator,
+            expected_index=int(expected_value),
+            iframe_locator=iframe_locator,
+            exact=exact,
+            timeout=timeout,
+            index=index
+        )
