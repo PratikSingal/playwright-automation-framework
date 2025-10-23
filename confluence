@@ -1,67 +1,65 @@
-h1. GUI Automation Framework - Executive Summary
+# GUI Automation Framework - Executive Summary
 
-h2. Technology Stack
+## Technology Stack
 
-*Playwright + Python* with Allure Reporting and BDD-style structure
+**Playwright + Python** with Allure Reporting and BDD-style structure
 
-----
+---
 
-h2. Why This Approach?
+## Why This Approach?
 
-h3. 1. Playwright Over Selenium
+### 1. Playwright Over Selenium
 
-* *Reliability*: Auto-wait mechanisms eliminate 70% of common test failures
-* *Speed*: 3-5x faster test execution with built-in parallel testing
-* *Modern Web Support*: Native handling of complex web technologies (Shadow DOM, iframes, SPAs)
-* *Maintenance*: Significantly reduced debugging time with built-in traces and screenshots
-* *Industry Backing*: Supported by Microsoft with active development
+- **Reliability**: Auto-wait mechanisms eliminate 70% of common test failures
+- **Speed**: 3-5x faster test execution with built-in parallel testing
+- **Modern Web Support**: Native handling of complex web technologies (Shadow DOM, iframes, SPAs)
+- **Maintenance**: Significantly reduced debugging time with built-in traces and screenshots
+- **Industry Backing**: Supported by Microsoft with active development
 
-h3. 2. Python Over Java/TypeScript
+### 2. Python Over Java/TypeScript
 
-* *Development Speed*: 30-50% less code, faster test creation
-* *Team Efficiency*: Easier onboarding, broader QA team accessibility
-* *No Compilation*: Immediate feedback during development
-* *Cost-Effective*: Single language for automation, scripting, and data analysis
+- **Development Speed**: 30-50% less code, faster test creation
+- **Team Efficiency**: Easier onboarding, broader QA team accessibility
+- **No Compilation**: Immediate feedback during development
+- **Cost-Effective**: Single language for automation, scripting, and data analysis
 
-h3. 3. BDD-Style Without Traditional BDD Framework
+### 3. BDD-Style Without Traditional BDD Framework
 
-*The Smart Middle Ground*
+**The Smart Middle Ground**
 
-We get clarity of traditional BDD *without* the overhead:
+We get clarity of traditional BDD **without** the overhead:
 
-{panel:title=What We Keep|borderStyle=solid|borderColor=#ccc|titleBGColor=#DFF0D8|bgColor=#F9F9F9}
-(/) Clear Given-When-Then structure in reports
-(/) Business-readable test documentation
-(/) Stakeholder-friendly Allure reports
-{panel}
+#### ✅ What We Keep:
+- Clear Given-When-Then structure in reports
+- Business-readable test documentation
+- Stakeholder-friendly Allure reports
 
-{panel:title=What We Avoid|borderStyle=solid|borderColor=#ccc|titleBGColor=#FCF8E3|bgColor=#F9F9F9}
-(/) No separate .feature files to maintain
-(/) No synchronization between feature files and code
-(/) Faster development (no Gherkin + step definitions)
-(/) Simpler debugging and refactoring
-{panel}
+#### ✅ What We Avoid:
+- No separate .feature files to maintain
+- No synchronization between feature files and code
+- Faster development (no Gherkin + step definitions)
+- Simpler debugging and refactoring
 
-{info}*Result*: BDD benefits with 40% less maintenance effort{info}
+> **Result**: BDD benefits with 40% less maintenance effort
 
-h3. 4. Allure Reporting
+### 4. Allure Reporting
 
-* *Visibility*: Interactive reports for technical and non-technical stakeholders
-* *Transparency*: Each test step visible with screenshots, logs, and execution details
-* *Trend Analysis*: Historical data to identify flaky tests and patterns
-* *Metrics*: Automated test counts, coverage reports, and success rates
+- **Visibility**: Interactive reports for technical and non-technical stakeholders
+- **Transparency**: Each test step visible with screenshots, logs, and execution details
+- **Trend Analysis**: Historical data to identify flaky tests and patterns
+- **Metrics**: Automated test counts, coverage reports, and success rates
 
-----
+---
 
-h2. Test Metrics Without Feature Files
+## Test Metrics Without Feature Files
 
-h4. Traditional BDD Challenge
+#### Traditional BDD Challenge
 Tools parse .feature files to generate test counts and reports, but this creates maintenance overhead.
 
-h4. Our Solution
-*Automated metric extraction directly from test code:*
+#### Our Solution
+**Automated metric extraction directly from test code:**
 
-{code:python}
+```python
 @allure.feature('User Management')
 @allure.story('Login')
 @pytest.mark.smoke
@@ -72,73 +70,72 @@ def test_user_login():
         # Implementation  
     with allure.step("Then: User sees dashboard"):
         # Implementation
-{code}
+```
 
-*Generates:*
-* Test inventory reports (JSON/HTML)
-* Count by feature, severity, priority
-* Real-time metrics during CI/CD
-* Integration with dashboards
+**Generates:**
+- Test inventory reports (JSON/HTML)
+- Count by feature, severity, priority
+- Real-time metrics during CI/CD
+- Integration with dashboards
 
-{tip}*Advantage*: Single source of truth, no file synchronization issues{tip}
+> **Advantage**: Single source of truth, no file synchronization issues
 
-----
+---
 
-h2. Business Impact
+## Business Impact
 
-h3. Short-Term (0-3 months)
-* Faster test development and execution
-* Reduced debugging time
-* Improved team productivity
+### Short-Term (0-3 months)
+- Faster test development and execution
+- Reduced debugging time
+- Improved team productivity
 
-h3. Long-Term (6+ months)
-* *Lower Maintenance Costs*: 40% reduction in framework maintenance
-* *Better Scalability*: Linear scaling as test suite grows
-* *Higher Quality*: More reliable tests = faster release cycles
-* *Team Flexibility*: Standard Python skills = easier hiring and training
+### Long-Term (6+ months)
+- **Lower Maintenance Costs**: 40% reduction in framework maintenance
+- **Better Scalability**: Linear scaling as test suite grows
+- **Higher Quality**: More reliable tests = faster release cycles
+- **Team Flexibility**: Standard Python skills = easier hiring and training
 
-----
+---
 
-h2. ROI Summary
+## ROI Summary
 
-||Factor||Impact||
-|*Test Development Speed*|30-40% faster|
-|*Maintenance Effort*|40% reduction|
-|*Test Execution Time*|3-5x faster|
-|*Debugging Time*|50% reduction|
-|*Team Onboarding*|Days vs weeks|
+| Factor | Impact |
+|--------|--------|
+| **Test Development Speed** | 30-40% faster |
+| **Maintenance Effort** | 40% reduction |
+| **Test Execution Time** | 3-5x faster |
+| **Debugging Time** | 50% reduction |
+| **Team Onboarding** | Days vs weeks |
 
-----
+---
 
-h2. Risk Mitigation
+## Risk Mitigation
 
-{panel:title=Avoided Risks|borderStyle=solid|borderColor=#ccc|titleBGColor=#F2DEDE|bgColor=#F9F9F9}
-(x) No vendor lock-in with proprietary BDD tools
-(x) No technical debt from outdated frameworks
-(x) No feature file synchronization bugs
-(x) No complex abstraction layers to maintain
-{panel}
+### Avoided Risks:
+- ❌ No vendor lock-in with proprietary BDD tools
+- ❌ No technical debt from outdated frameworks
+- ❌ No feature file synchronization bugs
+- ❌ No complex abstraction layers to maintain
 
-{panel:title=Technology Stability|borderStyle=solid|borderColor=#ccc|titleBGColor=#D9EDF7|bgColor=#F9F9F9}
-(/) *Playwright*: Microsoft-backed, enterprise-grade
-(/) *Python*: Industry standard, 30+ years stable
-(/) *Pytest*: Most popular Python testing framework
-(/) *Allure*: Open-source with strong community
-{panel}
+### Technology Stability:
+- ✅ **Playwright**: Microsoft-backed, enterprise-grade
+- ✅ **Python**: Industry standard, 30+ years stable
+- ✅ **Pytest**: Most popular Python testing framework
+- ✅ **Allure**: Open-source with strong community
 
-----
+---
 
-h2. Conclusion
+## Conclusion
 
-This framework delivers *enterprise-grade automation* with *reduced complexity and cost*. By choosing proven technologies and avoiding over-engineering, we've built a solution that balances:
+This framework delivers **enterprise-grade automation** with **reduced complexity and cost**. By choosing proven technologies and avoiding over-engineering, we've built a solution that balances:
 
-* *Quality*: Reliable, fast, maintainable tests
-* *Efficiency*: Faster development and execution
-* *Transparency*: Clear reporting for all stakeholders
-* *Scalability*: Ready for long-term growth
+- **Quality**: Reliable, fast, maintainable tests
+- **Efficiency**: Faster development and execution
+- **Transparency**: Clear reporting for all stakeholders
+- **Scalability**: Ready for long-term growth
 
 The pragmatic "BDD-style without BDD overhead" approach gives us the best of both worlds: clarity for business users and efficiency for technical teams.
 
-----
+---
 
-{note}*Recommendation*: Approved for production use with continuous improvement as the suite scales.{note}
+> **Recommendation**: Approved for production use with continuous improvement as the suite scales.
