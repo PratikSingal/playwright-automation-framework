@@ -332,3 +332,52 @@ def network_responses(page: Page):
     yield responses
     
     logger.info(f"Captured {len(responses)} network responses")
+
+
+@pytest.fixture(scope="function")
+def restart_browser(browser, config_manager):
+    """
+    Fixture to restart browser and get a fresh page
+    Usage: new_page = restart_browser()
+    Then reinitialize your POM: new_account_page = NewAccountPage(new_page)
+    """
+    created_contexts = []
+    created_pages = []
+    
+    def _restart():
+        logger.info("Restarting browser - creating new context and page")
+        
+        # Create new context
+        viewport = config_manager.get('browser.viewport', {'width': 1920, 'height': 1080})
+        new_context = browser.new_context(
+            viewport=viewport,
+            ignore_https_errors=True,
+            java_script_enabled=True,
+            accept_downloads=True
+        )
+        created_contexts.append(new_context)
+        
+        # Create new page
+        new_page = new_context.new_page()
+        new_page.set_default_timeout(config_manager.timeout)
+        new_page.set_default_navigation_timeout(config_manager.timeout)
+        created_pages.append(new_page)
+        
+        logger.success("New browser context and page created")
+        return new_page
+    
+    yield _restart
+    
+    # Cleanup
+    for page in created_pages:
+        try:
+            page.close()
+        except:
+            pass
+    for context in created_contexts:
+        try:
+            context.close()
+        except:
+            pass
+    
+    logger.info("Restart browser fixture cleaned up")
