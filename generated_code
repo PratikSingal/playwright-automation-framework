@@ -1,5 +1,789 @@
-    # Restart browser
-    fresh_page = restart_browser()
-    
-    # Reinitialize your POM with fresh page
-    new_account_page = NewAccountPage(fresh_page)
+# Non-Functional Requirements (NFR) Reference Guide
+
+---
+
+## 1. Performance
+
+**What it means:** How fast and efficiently the system responds to user actions and processes data.
+
+**Key Concepts:**
+
+- **Response Time** — Time taken from user request to receiving a response. Measured at P50 (median), P95, and P99 percentiles to understand typical and worst-case experiences.
+
+- **Throughput** — Volume of transactions or requests the system can handle per unit time (requests per second, transactions per minute).
+
+- **Latency** — Delay before data transfer begins. Network latency, database latency, and API latency all contribute to overall response time.
+
+- **Resource Utilization** — How much CPU, memory, disk I/O, and network bandwidth the system consumes under various loads.
+
+**What needs to be done:**
+
+- Define acceptable response times for critical user journeys
+- Identify performance-critical paths (login, checkout, search)
+- Establish baseline metrics before optimization
+- Implement caching strategies (CDN, application cache, database cache)
+- Optimize database queries and indexing
+- Set up connection pooling
+- Conduct load testing, stress testing, and soak testing
+- Monitor performance continuously in production
+- Define performance budgets for frontend assets
+
+**QA Automation:**
+
+- Integrate performance tests into CI/CD pipeline (run on every build or nightly)
+- Use tools like JMeter, Gatling, k6, or Locust for automated load testing
+- Set up automated API response time checks with threshold failures
+- Implement Lighthouse CI for frontend performance regression detection
+- Create performance benchmarks and fail builds if thresholds are breached
+- Automate database query performance testing with explain plan analysis
+- Set up synthetic monitoring to continuously measure production performance
+- Generate automated performance reports comparing against baselines
+- Implement performance profiling in staging environments
+- Use APM tools (Datadog, New Relic) with automated anomaly detection
+
+---
+
+## 2. Scalability
+
+**What it means:** The system's ability to handle increased load by adding resources, without requiring architectural changes.
+
+**Key Concepts:**
+
+- **Horizontal Scaling (Scale Out)** — Adding more instances/servers to distribute load. Preferred for cloud-native applications.
+
+- **Vertical Scaling (Scale Up)** — Adding more power (CPU, RAM) to existing servers. Has upper limits.
+
+- **Auto-scaling** — Automatically adjusting resources based on demand using predefined triggers (CPU threshold, queue depth, request count).
+
+- **Elasticity** — Ability to scale both up and down based on demand, optimizing costs.
+
+- **Statelessness** — Services that don't store session data locally, allowing any instance to handle any request.
+
+**What needs to be done:**
+
+- Design services to be stateless where possible
+- Externalize session storage (Redis, database)
+- Implement load balancing across instances
+- Define auto-scaling policies and triggers
+- Plan database scaling strategy (read replicas, sharding, partitioning)
+- Use message queues for asynchronous processing
+- Design APIs with pagination for large datasets
+- Plan for multi-region deployment if needed
+- Implement rate limiting to protect against traffic spikes
+
+**QA Automation:**
+
+- Automate scalability tests that gradually increase load until breaking point
+- Create auto-scaling validation tests (trigger scale-out, verify new instances work)
+- Implement soak tests (extended duration) to detect memory leaks and resource exhaustion
+- Automate testing of application behavior during scale-up and scale-down events
+- Test load balancer distribution with automated traffic analysis
+- Validate session handling across multiple instances automatically
+- Automate database connection pool testing under load
+- Create spike tests to validate sudden traffic surge handling
+- Test message queue backpressure and consumer scaling
+- Automate verification of data consistency during horizontal scaling
+
+---
+
+## 3. Availability
+
+**What it means:** The percentage of time the system is operational and accessible to users.
+
+**Key Concepts:**
+
+- **Uptime** — Percentage of time system is available. 99.9% (three nines) allows ~8.7 hours downtime per year. 99.99% (four nines) allows ~52 minutes per year.
+
+- **Redundancy** — Duplicate components that take over when primary fails. Active-active (all serving traffic) or active-passive (standby waiting).
+
+- **Failover** — Automatic switching to a backup system when primary fails.
+
+- **Single Point of Failure (SPOF)** — Any component whose failure brings down the entire system. Must be eliminated.
+
+- **Planned vs Unplanned Downtime** — Scheduled maintenance vs unexpected outages. Both count against availability.
+
+**What needs to be done:**
+
+- Identify and eliminate single points of failure
+- Deploy across multiple availability zones
+- Set up redundant databases with automatic failover
+- Configure load balancers with health checks
+- Implement zero-downtime deployment strategies (blue-green, canary, rolling)
+- Define maintenance windows and communication procedures
+- Set up redundant network paths
+- Use multiple DNS providers or DNS failover
+- Monitor availability continuously with synthetic checks
+
+**QA Automation:**
+
+- Set up automated health check endpoints and monitor them continuously
+- Implement synthetic monitoring from multiple geographic locations
+- Automate failover testing (kill primary, verify secondary takes over)
+- Create automated tests for zero-downtime deployments
+- Test load balancer failover scenarios automatically
+- Automate DNS failover validation
+- Implement automated canary deployment verification
+- Create chaos tests that randomly terminate instances
+- Automate verification of redundancy (kill components, verify system stays up)
+- Set up automated SLA tracking and reporting
+- Test maintenance mode functionality automatically
+
+---
+
+## 4. Reliability
+
+**What it means:** The system's ability to perform its intended function correctly and consistently over time.
+
+**Key Concepts:**
+
+- **MTBF (Mean Time Between Failures)** — Average time the system runs before experiencing a failure.
+
+- **MTTR (Mean Time To Recovery)** — Average time to restore service after a failure.
+
+- **MTTD (Mean Time To Detect)** — Average time to identify that a failure has occurred.
+
+- **Error Rate** — Percentage of requests that result in errors.
+
+- **Data Integrity** — Ensuring data remains accurate, consistent, and uncorrupted throughout its lifecycle.
+
+- **Idempotency** — Operations that produce the same result regardless of how many times they're executed. Critical for retry safety.
+
+**What needs to be done:**
+
+- Implement comprehensive error handling
+- Design idempotent APIs for safe retries
+- Use transactions for data consistency
+- Implement data validation at all entry points
+- Set up automated health checks
+- Create retry mechanisms with exponential backoff
+- Implement checksums for data integrity verification
+- Design for eventual consistency where appropriate
+- Test failure scenarios regularly
+- Document and automate recovery procedures
+
+**QA Automation:**
+
+- Automate error injection testing (network failures, timeouts, corrupted data)
+- Create automated retry mechanism validation tests
+- Test idempotency automatically (send same request multiple times, verify same result)
+- Implement automated data integrity checks (checksums, hash verification)
+- Automate transaction rollback testing
+- Create tests for concurrent access and race conditions
+- Automate dead letter queue processing verification
+- Test circuit breaker behavior automatically (trigger failure, verify circuit opens)
+- Implement automated MTTR measurement (inject failure, measure recovery time)
+- Create end-to-end tests that verify data consistency across services
+- Automate testing of error handling paths (not just happy paths)
+
+---
+
+## 5. Resilience
+
+**What it means:** The system's ability to absorb disturbances, adapt to changing conditions, and recover quickly while maintaining acceptable service levels.
+
+**Key Concepts:**
+
+- **Graceful Degradation** — Continuing to provide partial functionality when components fail, rather than complete failure.
+
+- **Circuit Breaker** — Pattern that prevents cascading failures by stopping requests to a failing service and allowing it time to recover.
+
+- **Bulkhead** — Isolating components so failure in one doesn't affect others. Like compartments in a ship.
+
+- **Fallback** — Alternative response or behavior when primary functionality is unavailable.
+
+- **Timeout** — Maximum time to wait for a response before giving up. Prevents resource exhaustion from hanging requests.
+
+- **Chaos Engineering** — Deliberately injecting failures in production to test system resilience.
+
+**What needs to be done:**
+
+- Implement circuit breakers for external dependencies
+- Define fallback behaviors for each critical service
+- Set appropriate timeouts for all external calls
+- Design bulkheads to isolate failure domains
+- Implement graceful degradation strategies
+- Use dead letter queues for failed message processing
+- Plan for dependency failures (what if payment provider is down?)
+- Conduct chaos engineering experiments
+- Implement self-healing mechanisms (auto-restart, auto-replace)
+- Define and test degraded modes of operation
+
+**QA Automation:**
+
+- Implement chaos engineering automation (Chaos Monkey, Gremlin, LitmusChaos)
+- Automate circuit breaker testing (fail dependency, verify circuit opens, test recovery)
+- Create automated tests for graceful degradation scenarios
+- Test fallback behaviors automatically when dependencies are unavailable
+- Automate timeout behavior validation
+- Implement bulkhead testing (fail one component, verify others unaffected)
+- Create game day automation (scheduled chaos experiments)
+- Test self-healing mechanisms automatically
+- Automate verification of degraded mode functionality
+- Implement automated dependency failure simulation
+- Create tests that validate system behavior during partial outages
+- Automate recovery verification after injected failures
+
+---
+
+## 6. Security
+
+**What it means:** Protecting the system, data, and users from unauthorized access, breaches, and attacks.
+
+**Key Concepts:**
+
+- **Authentication** — Verifying identity (who are you?). Methods include passwords, MFA, OAuth, SAML, certificates.
+
+- **Authorization** — Verifying permissions (what can you do?). Implemented via RBAC (role-based) or ABAC (attribute-based).
+
+- **Encryption at Rest** — Protecting stored data using encryption (database, files, backups).
+
+- **Encryption in Transit** — Protecting data moving between systems using TLS/HTTPS.
+
+- **Principle of Least Privilege** — Granting minimum permissions necessary to perform a function.
+
+- **Defense in Depth** — Multiple layers of security controls so breaching one doesn't compromise the system.
+
+- **Zero Trust** — Never trust, always verify. Authenticate and authorize every request regardless of source.
+
+**What needs to be done:**
+
+- Implement strong authentication (MFA for sensitive operations)
+- Design authorization model (RBAC/ABAC)
+- Encrypt all data at rest and in transit
+- Implement secure secret management (no secrets in code)
+- Set up Web Application Firewall (WAF)
+- Configure network segmentation and firewalls
+- Implement input validation and output encoding
+- Protect against OWASP Top 10 vulnerabilities
+- Set up security headers (CSP, HSTS, X-Frame-Options)
+- Conduct regular vulnerability scanning and penetration testing
+- Implement API security (rate limiting, authentication, validation)
+- Set up security monitoring and alerting
+- Define incident response procedures
+- Train developers on secure coding practices
+
+**QA Automation:**
+
+- Integrate SAST (Static Application Security Testing) in CI pipeline (SonarQube, Checkmarx, Semgrep)
+- Implement DAST (Dynamic Application Security Testing) automation (OWASP ZAP, Burp Suite)
+- Automate dependency vulnerability scanning (Snyk, Dependabot, npm audit)
+- Create automated tests for authentication flows (login, logout, session expiry, MFA)
+- Automate authorization testing (verify users can't access unauthorized resources)
+- Implement automated SQL injection and XSS testing
+- Create automated tests for security headers validation
+- Automate SSL/TLS certificate validation and expiry monitoring
+- Implement secrets scanning in code repositories (GitLeaks, TruffleHog)
+- Automate penetration testing for common vulnerabilities
+- Create automated tests for rate limiting and brute force protection
+- Implement container security scanning (Trivy, Clair)
+- Automate API security testing (authentication, input validation, output encoding)
+- Set up automated compliance scanning against security benchmarks (CIS)
+
+---
+
+## 7. Maintainability
+
+**What it means:** How easily the system can be modified, updated, debugged, and supported over time.
+
+**Key Concepts:**
+
+- **Code Quality** — Readable, well-structured, documented code that follows consistent standards.
+
+- **Technical Debt** — Shortcuts or quick fixes that make future changes harder. Must be tracked and managed.
+
+- **Modularity** — Breaking system into independent, interchangeable components with clear interfaces.
+
+- **Testability** — How easily the system can be tested. High testability means faster, more confident changes.
+
+- **Documentation** — Clear explanations of architecture, APIs, processes, and decisions.
+
+- **Configuration Management** — Externalizing configuration from code so changes don't require redeployment.
+
+**What needs to be done:**
+
+- Establish and enforce coding standards
+- Implement automated code review and linting
+- Maintain high test coverage (unit, integration, e2e)
+- Set up CI/CD pipelines for automated testing and deployment
+- Use infrastructure as code (Terraform, CloudFormation)
+- Externalize configuration using environment variables or config services
+- Create and maintain API documentation
+- Document architecture decisions (ADRs)
+- Implement feature flags for safer releases
+- Create runbooks for operational procedures
+- Track and address technical debt regularly
+- Keep dependencies updated
+
+**QA Automation:**
+
+- Implement automated code quality gates (fail builds below coverage threshold)
+- Set up automated linting and code style enforcement
+- Automate test coverage reporting and trend tracking
+- Create automated dependency update PRs (Dependabot, Renovate)
+- Implement automated API contract testing (Pact, Dredd)
+- Automate documentation generation and validation
+- Create automated tests for database migrations (run migration, verify schema)
+- Implement automated code complexity analysis
+- Set up automated technical debt tracking
+- Automate feature flag cleanup validation
+- Create automated tests for configuration changes
+- Implement automated rollback testing
+- Set up automated changelog generation
+- Create smoke tests that run after every deployment
+
+---
+
+## 8. Usability
+
+**What it means:** How easy and pleasant the system is for users to learn, use, and accomplish their goals.
+
+**Key Concepts:**
+
+- **Accessibility (a11y)** — Making the system usable by people with disabilities. WCAG defines standards (A, AA, AAA levels).
+
+- **Responsiveness** — Adapting the interface to different screen sizes and devices.
+
+- **Learnability** — How quickly new users can accomplish basic tasks.
+
+- **Error Prevention** — Designing to prevent user errors before they happen.
+
+- **Feedback** — Informing users about what's happening (loading states, success/error messages, progress indicators).
+
+- **Consistency** — Same patterns and behaviors throughout the application.
+
+**What needs to be done:**
+
+- Define and follow WCAG compliance level (typically AA)
+- Ensure keyboard navigation works throughout
+- Provide screen reader compatibility
+- Maintain sufficient color contrast
+- Design responsive layouts for all target devices
+- Implement clear, actionable error messages
+- Provide loading states and progress indicators
+- Use consistent design patterns (design system)
+- Support browser back button and deep linking
+- Test with real users
+- Support internationalization if needed (i18n)
+- Implement auto-save where appropriate
+
+**QA Automation:**
+
+- Integrate accessibility testing in CI (axe-core, pa11y, Lighthouse)
+- Automate WCAG compliance checking
+- Create automated visual regression tests (Percy, Chromatic, BackstopJS)
+- Implement automated cross-browser testing (BrowserStack, Sauce Labs, Playwright)
+- Create automated responsive design tests across breakpoints
+- Automate keyboard navigation testing
+- Implement automated screen reader compatibility tests
+- Create automated tests for error message display and clarity
+- Automate form validation behavior testing
+- Implement automated color contrast checking
+- Create automated tests for loading states and progress indicators
+- Set up automated mobile device testing
+- Implement E2E tests for critical user journeys
+- Automate broken link detection
+- Create automated tests for internationalization (i18n) if applicable
+
+---
+
+## 9. Compatibility
+
+**What it means:** The system's ability to work correctly with other systems, platforms, browsers, and data formats.
+
+**Key Concepts:**
+
+- **Browser Compatibility** — Supporting different browsers and versions (Chrome, Firefox, Safari, Edge).
+
+- **API Versioning** — Managing changes to APIs without breaking existing consumers. Common approaches: URL versioning (/v1/), header versioning.
+
+- **Backward Compatibility** — New versions continue to work with older clients or data.
+
+- **Forward Compatibility** — Older versions can handle newer data formats gracefully (ignoring unknown fields).
+
+- **Interoperability** — Ability to exchange and use information with other systems.
+
+**What needs to be done:**
+
+- Define supported browsers and versions
+- Define supported devices and operating systems
+- Implement API versioning strategy from the start
+- Document all APIs (OpenAPI/Swagger)
+- Define data format standards (JSON schema)
+- Plan deprecation policy for old API versions
+- Implement contract testing for integrations
+- Handle unknown fields gracefully in APIs
+- Test across all supported platforms
+- Document integration requirements for third parties
+
+**QA Automation:**
+
+- Implement API contract testing (Pact) to catch breaking changes
+- Automate backward compatibility testing (test new version with old clients)
+- Create automated tests for API versioning (verify old versions still work)
+- Implement automated schema validation for API requests/responses
+- Set up cross-browser automated testing matrix
+- Automate cross-platform testing (Windows, Mac, Linux, mobile)
+- Create automated tests for data format compatibility (JSON, XML, CSV)
+- Implement automated integration tests with third-party systems
+- Automate API deprecation warnings verification
+- Create automated tests for graceful handling of unknown fields
+- Implement consumer-driven contract testing
+- Automate database backward compatibility testing for migrations
+- Set up automated testing for different OS versions and devices
+
+---
+
+## 10. Compliance & Regulatory
+
+**What it means:** Meeting legal, regulatory, and contractual obligations related to data handling, privacy, and security.
+
+**Key Concepts:**
+
+- **GDPR** — EU data protection regulation. Requires consent, data subject rights (access, deletion), breach notification within 72 hours.
+
+- **CCPA/CPRA** — California privacy laws. Requires disclosure of data collection, opt-out rights, non-discrimination.
+
+- **HIPAA** — US healthcare data protection. Requires safeguards for Protected Health Information (PHI).
+
+- **PCI DSS** — Payment card data security. Required for handling credit card information.
+
+- **SOC 2** — Security audit framework. Type I (point in time) and Type II (over a period).
+
+- **Data Residency** — Requirements about where data must be physically stored.
+
+- **Audit Trail** — Chronological record of system activities for compliance verification.
+
+**What needs to be done:**
+
+- Identify all applicable regulations for your industry and geography
+- Classify data by sensitivity level
+- Implement consent management where required
+- Enable data subject rights (access, export, deletion)
+- Set up audit logging for compliance-relevant actions
+- Define and enforce data retention policies
+- Implement data residency controls if required
+- Create privacy policy and terms of service
+- Conduct regular compliance audits
+- Set up breach notification procedures
+- Train team on compliance requirements
+- Document all data processing activities
+- Implement data anonymization/pseudonymization where needed
+
+**QA Automation:**
+
+- Automate PII detection scanning in databases and logs
+- Implement automated consent flow testing
+- Create automated tests for data subject rights (access, delete, export requests)
+- Automate audit log completeness verification
+- Implement automated data retention policy enforcement testing
+- Create automated tests for data masking in non-production environments
+- Automate compliance report generation
+- Implement automated checks for sensitive data in logs
+- Create automated tests for breach notification workflows
+- Automate data residency verification (ensure data stays in correct region)
+- Implement automated encryption verification (at rest and in transit)
+- Create automated tests for access control and permission boundaries
+- Set up automated compliance drift detection
+- Automate testing of cookie consent mechanisms
+
+---
+
+## 11. Disaster Recovery & Business Continuity
+
+**What it means:** Preparing for and recovering from catastrophic events that could disrupt system operation.
+
+**Key Concepts:**
+
+- **RTO (Recovery Time Objective)** — Maximum acceptable time to restore service after disaster. "How long can we be down?"
+
+- **RPO (Recovery Point Objective)** — Maximum acceptable data loss measured in time. "How much data can we lose?" If RPO is 1 hour, you need backups at least every hour.
+
+- **Hot Site** — Fully operational duplicate environment, ready to take over immediately.
+
+- **Warm Site** — Partially configured environment that needs some setup time.
+
+- **Cold Site** — Basic infrastructure only, requires significant time to activate.
+
+- **Backup** — Copy of data stored separately for recovery purposes.
+
+- **Replication** — Real-time copying of data to another location.
+
+**What needs to be done:**
+
+- Define RTO and RPO for each critical system
+- Identify critical business processes and dependencies
+- Implement automated backup strategy
+- Set up cross-region data replication for critical data
+- Test backup restoration regularly (not just backup creation)
+- Create documented disaster recovery plan
+- Define roles and responsibilities during disaster
+- Set up communication plan for outages
+- Conduct DR drills at least annually
+- Implement automated failover where possible
+- Maintain runbooks for recovery procedures
+- Keep contact lists updated
+- Plan for various scenarios (region failure, data corruption, ransomware)
+
+**QA Automation:**
+
+- Automate backup creation verification (verify backups are actually created)
+- Implement automated backup restoration testing (restore and validate data integrity)
+- Create automated failover testing (trigger failover, verify RTO is met)
+- Automate RPO verification (measure actual data loss in failure scenarios)
+- Implement automated DR drill execution and reporting
+- Create automated tests for cross-region replication lag
+- Automate runbook execution testing
+- Implement automated testing of communication/alerting during DR
+- Create automated data corruption detection and recovery tests
+- Automate verification of backup encryption
+- Implement automated testing of point-in-time recovery
+- Create chaos engineering tests for DR scenarios
+- Automate verification of backup retention policies
+- Set up automated DR environment health checks
+
+---
+
+## 12. Observability
+
+**What it means:** The ability to understand the internal state of the system by examining its outputs (logs, metrics, traces).
+
+**Key Concepts:**
+
+- **Logging** — Recording events that happen in the system. Should be structured (JSON), include context, and be centralized.
+
+- **Metrics** — Numerical measurements over time (request count, error rate, latency percentiles, CPU usage).
+
+- **Tracing** — Following a request's path through distributed systems. Each request gets a trace ID that connects all related operations.
+
+- **Alerting** — Automated notifications when metrics cross thresholds or anomalies are detected.
+
+- **SLI (Service Level Indicator)** — Metric that measures service quality (e.g., percentage of requests under 200ms).
+
+- **SLO (Service Level Objective)** — Target value for an SLI (e.g., 99% of requests under 200ms).
+
+- **SLA (Service Level Agreement)** — Contract with consequences if SLOs aren't met.
+
+**What needs to be done:**
+
+- Implement structured logging with consistent format
+- Include correlation/trace IDs in all logs
+- Set up centralized log aggregation
+- Define key metrics for each service
+- Implement distributed tracing across services
+- Create dashboards for different audiences (ops, dev, business)
+- Define SLIs and SLOs for critical services
+- Set up alerting with appropriate thresholds
+- Implement on-call rotation and escalation procedures
+- Create runbooks for common alerts
+- Set up error tracking and grouping
+- Implement synthetic monitoring (health checks from outside)
+- Avoid alert fatigue by tuning thresholds
+- Conduct regular review of observability gaps
+
+**QA Automation:**
+
+- Automate log format validation (ensure structured logging standards)
+- Implement automated tests for trace ID propagation across services
+- Create automated tests that verify metrics are being collected
+- Automate alert testing (trigger conditions, verify alerts fire)
+- Implement automated dashboard validation (verify data sources work)
+- Create automated tests for log aggregation pipeline
+- Automate SLO measurement and reporting
+- Implement automated anomaly detection validation
+- Create automated tests for correlation ID presence in logs
+- Automate verification of error tracking integration
+- Implement synthetic monitoring automation
+- Create automated tests for alert escalation paths
+- Automate dead man's switch testing (verify alerts when systems stop reporting)
+- Set up automated observability coverage reporting
+
+---
+
+## 13. Data Management
+
+**What it means:** Ensuring data is accurate, consistent, secure, and properly managed throughout its lifecycle.
+
+**Key Concepts:**
+
+- **Data Quality** — Accuracy, completeness, consistency, and timeliness of data.
+
+- **Data Lifecycle** — Stages from creation through archival and deletion. Each stage may have different requirements.
+
+- **Data Retention** — How long data is kept before archival or deletion. Driven by business needs and regulations.
+
+- **Data Governance** — Policies and processes for managing data assets. Includes ownership, stewardship, and standards.
+
+- **Master Data Management** — Ensuring consistent, accurate master data (customers, products) across systems.
+
+- **Data Lineage** — Tracking where data comes from and how it transforms through the system.
+
+**What needs to be done:**
+
+- Define data classification scheme (public, internal, confidential, restricted)
+- Assign data owners for each data domain
+- Implement data validation at entry points
+- Define retention periods for each data type
+- Implement automated data archival and deletion
+- Set up data quality monitoring
+- Create data dictionary documenting all entities
+- Implement referential integrity checks
+- Plan data migration strategy
+- Set up data anonymization for non-production environments
+- Document data flows and lineage
+- Implement data versioning if needed
+- Define data backup and recovery procedures
+
+**QA Automation:**
+
+- Automate data quality checks (accuracy, completeness, consistency)
+- Implement automated data validation testing at all entry points
+- Create automated tests for data retention policy enforcement
+- Automate data archival process verification
+- Implement automated referential integrity testing
+- Create automated tests for data migration scripts
+- Automate data anonymization verification for non-prod environments
+- Implement automated schema validation tests
+- Create automated tests for data lineage accuracy
+- Automate duplicate detection testing
+- Implement automated data freshness monitoring
+- Create automated tests for data transformation accuracy
+- Automate master data consistency checks across systems
+- Set up automated data drift detection
+- Implement automated testing for data deletion (right to be forgotten)
+
+---
+
+## Quick Reference: NFR Relationships
+
+Understanding how NFRs interact helps make better trade-off decisions:
+
+**Often in tension:**
+- Security ↔ Usability (more security often means more friction)
+- Performance ↔ Security (encryption adds overhead)
+- Consistency ↔ Availability (CAP theorem)
+- Cost ↔ Almost everything (higher NFRs usually cost more)
+
+**Often complementary:**
+- Observability → Reliability (can't fix what you can't see)
+- Maintainability → All others (easier to improve everything)
+- Resilience → Availability (resilient systems stay available)
+
+---
+
+## NFR Prioritization Questions
+
+When deciding which NFRs to focus on, ask:
+
+1. What happens if this fails? (Impact)
+2. How likely is failure? (Probability)
+3. Who is affected? (Scope)
+4. Can users work around it? (Alternatives)
+5. What are the regulatory requirements? (Compliance)
+6. What do competitors offer? (Market expectation)
+7. What's the cost to implement vs cost of failure? (ROI)
+
+---
+
+## QA Automation Tools Reference
+
+**Performance Testing:**
+- JMeter — Open source load testing, supports various protocols
+- Gatling — Scala-based, good for high load simulation
+- k6 — Modern, JavaScript-based, developer-friendly
+- Locust — Python-based, distributed load testing
+- Artillery — Node.js-based, easy YAML configuration
+- Lighthouse CI — Frontend performance in CI pipeline
+
+**Security Testing:**
+- OWASP ZAP — Open source DAST scanner
+- Burp Suite — Comprehensive security testing
+- SonarQube — SAST, code quality, security hotspots
+- Snyk — Dependency vulnerability scanning
+- Semgrep — Fast static analysis
+- Trivy — Container and artifact scanning
+- GitLeaks/TruffleHog — Secrets detection in repos
+- Checkmarx — Enterprise SAST solution
+
+**API Testing:**
+- Postman/Newman — API testing and automation
+- Pact — Consumer-driven contract testing
+- Dredd — API documentation testing
+- REST Assured — Java API testing
+- Karate — API and UI testing framework
+- Swagger Validator — OpenAPI spec validation
+
+**UI/Accessibility Testing:**
+- Playwright — Cross-browser automation
+- Cypress — Modern E2E testing
+- Selenium — Browser automation standard
+- axe-core — Accessibility testing engine
+- pa11y — Automated accessibility testing
+- Percy — Visual regression testing
+- Chromatic — Storybook visual testing
+- BackstopJS — Visual regression testing
+
+**Chaos Engineering:**
+- Chaos Monkey — Netflix's random instance terminator
+- Gremlin — Enterprise chaos engineering platform
+- LitmusChaos — Kubernetes-native chaos engineering
+- Chaos Toolkit — Open source chaos experiments
+- AWS Fault Injection Simulator — AWS-native chaos
+
+**Monitoring & Observability:**
+- Datadog — Full-stack monitoring
+- New Relic — APM and observability
+- Prometheus + Grafana — Open source metrics and dashboards
+- ELK Stack — Logging (Elasticsearch, Logstash, Kibana)
+- Jaeger/Zipkin — Distributed tracing
+- PagerDuty/OpsGenie — Alerting and incident management
+- Sentry — Error tracking
+
+**Data Quality:**
+- Great Expectations — Data validation and profiling
+- dbt — Data transformation testing
+- Apache Griffin — Big data quality
+- Deequ — Data quality on Spark
+- Monte Carlo — Data observability platform
+
+**CI/CD Integration:**
+- GitHub Actions — Native GitHub CI/CD
+- GitLab CI — Native GitLab CI/CD
+- Jenkins — Open source automation server
+- CircleCI — Cloud CI/CD platform
+- Azure DevOps — Microsoft's DevOps platform
+
+---
+
+## QA Automation Strategy Checklist
+
+**Foundation (Start Here):**
+- [ ] Set up CI/CD pipeline with automated test execution
+- [ ] Implement unit test coverage requirements (gate builds)
+- [ ] Create smoke tests for post-deployment verification
+- [ ] Set up basic security scanning (dependency vulnerabilities)
+- [ ] Implement automated linting and code style checks
+
+**Core Automation:**
+- [ ] Build integration test suite for critical paths
+- [ ] Implement API contract testing
+- [ ] Set up performance baseline tests
+- [ ] Create E2E tests for key user journeys
+- [ ] Implement accessibility testing in CI
+
+**Advanced Automation:**
+- [ ] Set up chaos engineering experiments
+- [ ] Implement visual regression testing
+- [ ] Create automated DR/failover testing
+- [ ] Build comprehensive load and stress testing
+- [ ] Implement automated compliance checks
+
+**Continuous Improvement:**
+- [ ] Set up test result trend analysis
+- [ ] Implement flaky test detection and management
+- [ ] Create automated test coverage reporting
+- [ ] Build test environment provisioning automation
+- [ ] Implement shift-left testing practices
+
+---
+
+*Use this document as a reference when defining NFRs for your project. Not all categories will apply to every project — select what's relevant to your context.*
