@@ -1,0 +1,496 @@
+###############################################################################
+# FILE: config_manager.py
+###############################################################################
+
+import os
+from typing import Any
+
+import yaml
+
+
+class ConfigManager:
+    """
+    Singleton config manager that reads from YAML with environment variable overrides.
+    
+    On load, all environment variable overrides are applied to the config.
+    For nested keys, use double underscores in env vars: DATABASE__QA__HOST -> database.qa.host
+    """
+    
+    _instance = None
+    _config: dict = {}
+    _env_prefix: str = ""
+    _loaded: bool = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def load(self, config_path: str, env_prefix: str = "") -> "ConfigManager":
+        """
+        Load configuration from a YAML file and apply all env overrides.
+        
+        Args:
+            config_path: Path to the config file (.yaml, .yml, or .json)
+            env_prefix: Optional prefix for environment variables
+        """
+        if self._loaded:
+            return self
+        
+        self._env_prefix = env_prefix
+        
+        with open(config_path, 'r') as f:
+            self._config = yaml.safe_load(f) or {}
+        
+        self._apply_all_env_overrides()
+        self._loaded = True
+        
+        return self
+    
+    def _apply_all_env_overrides(self) -> None:
+        """Scan all env vars and apply matching overrides to config."""
+        prefix = f"{self._env_prefix}_" if self._env_prefix else ""
+        
+        for env_key, env_value in os.environ.items():
+            if prefix and not env_key.startswith(prefix):
+                continue
+            
+            key = env_key[len(prefix):] if prefix else env_key
+            key = key.lower().replace("__", ".")
+            
+            if self._key_exists(key):
+                self._set_nested_value(key, yaml.safe_load(env_value))
+    
+    def _key_exists(self, key: str) -> bool:
+        """Check if a dot-notation key exists in config."""
+        keys = key.split(".")
+        value = self._config
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return False
+        return True
+    
+    def _set_nested_value(self, key: str, value: Any) -> None:
+        """Set a value in nested dict using dot notation."""
+        keys = key.split(".")
+        config = self._config
+        
+        for k in keys[:-1]:
+            config = config[k]
+        
+        config[keys[-1]] = value
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Get a config value by dot-notation key.
+        
+        Args:
+            key: Dot-notation key (e.g., "database.qa.host")
+            default: Default value if key not found
+        """
+        keys = key.split(".")
+        value = self._config
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        
+        return value
+    
+    def get_section(self, key: str) -> dict:
+        """
+        Get an entire section as a dictionary.
+        
+        Example:
+            config.get_section("database.qa")
+        """
+        return self.get(key, {})
+    
+    @property
+    def data(self) -> dict:
+        """Return the entire merged config dict."""
+        return self._config
+    
+    @property
+    def is_loaded(self) -> bool:
+        """Check if config has been loaded."""
+        return self._loaded
+    
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is None:
+            raise KeyError(key)
+        return value
+    
+    def reset(self) -> None:
+        """Reset the singleton (useful for testing)."""
+        self._config = {}
+        self._env_prefix = ""
+        self._loaded = False
+
+
+def get_config() -> ConfigManager:
+    """Get the ConfigManager singleton instance."""
+    return ConfigManager()
+
+
+###############################################################################
+# FILE: config.yaml
+###############################################################################
+"""
+database:
+  qa:
+    host: "qa-db.example.com"
+    port: 5432
+    username: "qa_user"
+    password: "qa_password"
+  uat1:
+    host: "uat1-db.example.com"
+    port: 5432
+    username: "uat1_user"
+    password: "uat1_password"
+  uat2:
+    host: "uat2-db.example.com"
+    port: 5432
+    username: "uat2_user"
+    password: "uat2_password"
+
+api:
+  base_url: "https://api.example.com"
+  timeout: 30
+  retry_count: 3
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+"""
+
+
+###############################################################################
+# FILE: conftest.py (pytest configuration)
+###############################################################################
+
+import os
+import pytest
+from config_manager import get_config, ConfigManager
+
+
+@pytest.fixture(scope="session")
+def config():
+    """
+    Session-scoped fixture that loads config once for all tests.
+    
+    Usage in tests:
+        def test_something(config):
+            host = config.get("database.qa.host")
+    """
+    # Get the config path (relative to project root)
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    
+    # Load config with APP prefix for env vars
+    get_config().load(config_path, env_prefix="APP")
+    
+    yield get_config()
+    
+    # Cleanup after all tests
+    get_config().reset()
+
+
+@pytest.fixture(scope="session")
+def db_config(config):
+    """
+    Session-scoped fixture for database configuration.
+    
+    Usage:
+        def test_db(db_config):
+            qa_db = db_config["qa"]
+    """
+    return config.get_section("database")
+
+
+@pytest.fixture(scope="session")
+def api_config(config):
+    """
+    Session-scoped fixture for API configuration.
+    
+    Usage:
+        def test_api(api_config):
+            base_url = api_config["base_url"]
+    """
+    return config.get_section("api")
+
+
+###############################################################################
+# FILE: tests/test_config.py
+###############################################################################
+
+import os
+import pytest
+
+
+class TestConfigManager:
+    """Tests for ConfigManager."""
+    
+    def test_config_loaded(self, config):
+        """Test that config is loaded."""
+        assert config.is_loaded is True
+    
+    def test_get_nested_value(self, config):
+        """Test getting nested values."""
+        host = config.get("database.qa.host")
+        assert host == "qa-db.example.com"
+    
+    def test_get_section(self, config):
+        """Test getting entire section."""
+        qa_config = config.get_section("database.qa")
+        
+        assert "host" in qa_config
+        assert "username" in qa_config
+        assert "password" in qa_config
+    
+    def test_get_with_default(self, config):
+        """Test default value for missing key."""
+        value = config.get("nonexistent.key", "default_value")
+        assert value == "default_value"
+    
+    def test_data_property(self, config):
+        """Test accessing entire config."""
+        data = config.data
+        
+        assert "database" in data
+        assert "api" in data
+    
+    def test_dict_access(self, config):
+        """Test dict-style access."""
+        host = config["database.qa.host"]
+        assert host == "qa-db.example.com"
+    
+    def test_dict_access_missing_key(self, config):
+        """Test KeyError for missing key."""
+        with pytest.raises(KeyError):
+            _ = config["nonexistent.key"]
+
+
+class TestDatabaseConfig:
+    """Tests using db_config fixture."""
+    
+    def test_qa_config(self, db_config):
+        """Test QA database config."""
+        qa = db_config["qa"]
+        
+        assert qa["host"] == "qa-db.example.com"
+        assert qa["port"] == 5432
+    
+    def test_uat1_config(self, db_config):
+        """Test UAT1 database config."""
+        uat1 = db_config["uat1"]
+        
+        assert "host" in uat1
+        assert "username" in uat1
+    
+    def test_all_environments_exist(self, db_config):
+        """Test all environments are present."""
+        assert "qa" in db_config
+        assert "uat1" in db_config
+        assert "uat2" in db_config
+
+
+class TestApiConfig:
+    """Tests using api_config fixture."""
+    
+    def test_api_base_url(self, api_config):
+        """Test API base URL."""
+        assert api_config["base_url"] == "https://api.example.com"
+    
+    def test_api_timeout(self, api_config):
+        """Test API timeout."""
+        assert api_config["timeout"] == 30
+
+
+###############################################################################
+# FILE: tests/test_env_override.py
+###############################################################################
+
+import os
+import pytest
+from config_manager import ConfigManager
+
+
+@pytest.fixture
+def fresh_config():
+    """
+    Function-scoped fixture with fresh config for env override tests.
+    """
+    config = ConfigManager()
+    config.reset()
+    yield config
+    config.reset()
+
+
+class TestEnvOverride:
+    """Test environment variable overrides."""
+    
+    def test_env_override_single_value(self, fresh_config, tmp_path):
+        """Test single value override."""
+        # Create temp config file
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+database:
+  qa:
+    host: "original-host"
+""")
+        
+        # Set env var
+        os.environ["TEST_DATABASE__QA__HOST"] = "overridden-host"
+        
+        try:
+            fresh_config.load(str(config_file), env_prefix="TEST")
+            assert fresh_config.get("database.qa.host") == "overridden-host"
+        finally:
+            del os.environ["TEST_DATABASE__QA__HOST"]
+    
+    def test_env_override_multiple_values(self, fresh_config, tmp_path):
+        """Test multiple value overrides."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+database:
+  qa:
+    host: "original-host"
+    port: 5432
+    username: "original-user"
+""")
+        
+        os.environ["TEST_DATABASE__QA__HOST"] = "new-host"
+        os.environ["TEST_DATABASE__QA__PORT"] = "3306"
+        os.environ["TEST_DATABASE__QA__USERNAME"] = "new-user"
+        
+        try:
+            fresh_config.load(str(config_file), env_prefix="TEST")
+            
+            assert fresh_config.get("database.qa.host") == "new-host"
+            assert fresh_config.get("database.qa.port") == 3306  # Note: int
+            assert fresh_config.get("database.qa.username") == "new-user"
+        finally:
+            del os.environ["TEST_DATABASE__QA__HOST"]
+            del os.environ["TEST_DATABASE__QA__PORT"]
+            del os.environ["TEST_DATABASE__QA__USERNAME"]
+    
+    def test_env_override_preserves_non_overridden(self, fresh_config, tmp_path):
+        """Test that non-overridden values are preserved."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+database:
+  qa:
+    host: "original-host"
+    password: "secret"
+""")
+        
+        os.environ["TEST_DATABASE__QA__HOST"] = "new-host"
+        
+        try:
+            fresh_config.load(str(config_file), env_prefix="TEST")
+            
+            assert fresh_config.get("database.qa.host") == "new-host"
+            assert fresh_config.get("database.qa.password") == "secret"
+        finally:
+            del os.environ["TEST_DATABASE__QA__HOST"]
+
+
+###############################################################################
+# FILE: example_usage.py
+###############################################################################
+
+"""
+Example showing how to use ConfigManager in your application.
+"""
+
+from config_manager import get_config
+
+
+def main():
+    # Load config once at application startup
+    config = get_config().load("config.yaml", env_prefix="APP")
+    
+    # Access values anywhere
+    print("=== Database Configs ===")
+    for env in ["qa", "uat1", "uat2"]:
+        db = config.get_section(f"database.{env}")
+        print(f"{env}: {db['host']}:{db['port']}")
+    
+    print("\n=== API Config ===")
+    print(f"Base URL: {config.get('api.base_url')}")
+    print(f"Timeout: {config.get('api.timeout')}")
+    
+    print("\n=== Full Config ===")
+    print(config.data)
+
+
+def connect_to_database(environment: str):
+    """Example function using config."""
+    config = get_config()  # Gets same singleton instance
+    
+    db = config.get_section(f"database.{environment}")
+    
+    print(f"Connecting to {db['host']}:{db['port']} as {db['username']}")
+    # connection = create_connection(
+    #     host=db['host'],
+    #     port=db['port'],
+    #     username=db['username'],
+    #     password=db['password']
+    # )
+    # return connection
+
+
+if __name__ == "__main__":
+    main()
+    print("\n" + "="*50 + "\n")
+    connect_to_database("qa")
+
+
+###############################################################################
+# FILE: requirements.txt
+###############################################################################
+"""
+pyyaml>=6.0
+pytest>=7.0
+"""
+
+
+###############################################################################
+# PROJECT STRUCTURE
+###############################################################################
+"""
+project/
+├── config_manager.py      # ConfigManager class
+├── config.yaml            # Your configuration file
+├── conftest.py            # Pytest fixtures
+├── requirements.txt       # Dependencies
+├── example_usage.py       # Usage examples
+└── tests/
+    ├── __init__.py
+    ├── test_config.py     # Config tests
+    └── test_env_override.py  # Env override tests
+"""
+
+
+###############################################################################
+# RUNNING TESTS
+###############################################################################
+"""
+# Install dependencies
+pip install -r requirements.txt
+
+# Run all tests
+pytest -v
+
+# Run specific test file
+pytest tests/test_config.py -v
+
+# Run with env override
+APP_DATABASE__QA__HOST=production-db pytest -v
+"""
