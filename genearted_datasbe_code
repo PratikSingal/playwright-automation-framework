@@ -1,0 +1,278 @@
+###############################################################################
+# FILE: database_manager.py
+###############################################################################
+
+from typing import Any
+import pymysql
+from config_manager import get_config
+
+
+class DatabaseManager:
+    """
+    Manages database connections with auto-reconnect support.
+    """
+    
+    _instance = None
+    _connections: dict = {}
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def _create_connection(self, environment: str):
+        """Create a new database connection."""
+        config = get_config()
+        db_config = config.get_section(f"database.{environment}")
+        
+        if not db_config:
+            raise ValueError(f"No database config found for: {environment}")
+        
+        connection = pymysql.connect(
+            host=db_config["host"],
+            port=db_config["port"],
+            user=db_config["username"],
+            password=db_config["password"],
+            database=db_config.get("database", ""),
+            autocommit=True,
+            connect_timeout=10,
+            read_timeout=30,
+            write_timeout=30
+        )
+        
+        return connection
+    
+    def _is_connection_alive(self, connection) -> bool:
+        """Check if connection is still active."""
+        try:
+            connection.ping(reconnect=False)
+            return True
+        except Exception:
+            return False
+    
+    def get_connection(self, environment: str, force_new: bool = False):
+        """
+        Get a database connection with auto-reconnect.
+        
+        Args:
+            environment: Environment name (qa, uat1, uat2)
+            force_new: Force create new connection
+            
+        Returns:
+            Active database connection
+        """
+        # Force new connection if requested
+        if force_new and environment in self._connections:
+            self.close_connection(environment)
+        
+        # Check existing connection
+        if environment in self._connections:
+            conn = self._connections[environment]
+            
+            if self._is_connection_alive(conn):
+                return conn
+            else:
+                # Connection dead, remove it
+                print(f"Connection to {environment} dropped, reconnecting...")
+                del self._connections[environment]
+        
+        # Create new connection
+        connection = self._create_connection(environment)
+        self._connections[environment] = connection
+        
+        return connection
+    
+    def execute_query(self, environment: str, query: str, params: tuple = None) -> Any:
+        """
+        Execute query with auto-reconnect on failure.
+        """
+        max_retries = 2
+        
+        for attempt in range(max_retries):
+            try:
+                connection = self.get_connection(environment)
+                
+                with connection.cursor() as cursor:
+                    cursor.execute(query, params)
+                    return cursor.fetchall()
+                    
+            except (pymysql.OperationalError, pymysql.InterfaceError) as e:
+                print(f"Query failed (attempt {attempt + 1}): {e}")
+                
+                # Force reconnect on next attempt
+                if environment in self._connections:
+                    del self._connections[environment]
+                
+                if attempt == max_retries - 1:
+                    raise
+    
+    def get_all_connections(self) -> dict:
+        """Get connections for all configured environments."""
+        config = get_config()
+        db_section = config.get_section("database")
+        
+        for environment in db_section.keys():
+            self.get_connection(environment)
+        
+        return self._connections
+    
+    def close_connection(self, environment: str) -> None:
+        """Close a specific connection."""
+        if environment in self._connections:
+            try:
+                self._connections[environment].close()
+            except Exception:
+                pass
+            del self._connections[environment]
+    
+    def close_all_connections(self) -> None:
+        """Close all connections."""
+        for env in list(self._connections.keys()):
+            self.close_connection(env)
+    
+    def reset(self) -> None:
+        """Reset manager."""
+        self.close_all_connections()
+
+
+def get_db_manager() -> DatabaseManager:
+    """Get DatabaseManager singleton."""
+    return DatabaseManager()
+
+
+###############################################################################
+# FILE: conftest.py
+###############################################################################
+
+import os
+import pytest
+from config_manager import get_config
+from database_manager import get_db_manager
+
+
+@pytest.fixture(scope="session")
+def config():
+    """Session-scoped config."""
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    get_config().load(config_path, env_prefix="APP")
+    
+    yield get_config()
+    
+    get_config().reset()
+
+
+@pytest.fixture(scope="session")
+def db_manager(config):
+    """
+    Session-scoped database manager.
+    Auto-reconnect handles dropped connections.
+    """
+    manager = get_db_manager()
+    
+    yield manager
+    
+    manager.close_all_connections()
+    manager.reset()
+
+
+# Option 1: Session scope with auto-reconnect (RECOMMENDED)
+@pytest.fixture(scope="session")
+def qa_db(db_manager):
+    """Session-scoped QA connection with auto-reconnect."""
+    return lambda: db_manager.get_connection("qa")
+
+
+# Option 2: Function scope - fresh connection every test
+@pytest.fixture(scope="function")
+def qa_db_fresh(db_manager):
+    """Fresh QA connection for each test."""
+    conn = db_manager.get_connection("qa", force_new=True)
+    yield conn
+    # Don't close - let manager handle it
+
+
+# Option 3: Class scope - fresh connection per test class
+@pytest.fixture(scope="class")
+def qa_db_class(db_manager):
+    """Fresh QA connection per test class."""
+    conn = db_manager.get_connection("qa", force_new=True)
+    yield conn
+
+
+###############################################################################
+# FILE: tests/test_database.py
+###############################################################################
+
+import pytest
+
+
+class TestWithAutoReconnect:
+    """
+    Tests using session-scoped fixture with auto-reconnect.
+    RECOMMENDED approach.
+    """
+    
+    def test_query_one(self, qa_db):
+        """Connection auto-reconnects if dropped."""
+        conn = qa_db()  # Call the lambda to get connection
+        assert conn.open is True
+    
+    def test_query_two(self, qa_db):
+        """Same connection reused, or reconnected if dropped."""
+        conn = qa_db()
+        
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+        
+        assert result is not None
+
+
+class TestWithFreshConnection:
+    """
+    Tests that need guaranteed fresh connection.
+    Use when test modifies connection state.
+    """
+    
+    def test_fresh_one(self, qa_db_fresh):
+        """Gets brand new connection."""
+        assert qa_db_fresh.open is True
+    
+    def test_fresh_two(self, qa_db_fresh):
+        """Another brand new connection."""
+        assert qa_db_fresh.open is True
+
+
+class TestWithClassScope:
+    """
+    Tests sharing connection within class.
+    Fresh connection at class start.
+    """
+    
+    def test_class_one(self, qa_db_class):
+        """Uses class-level connection."""
+        assert qa_db_class.open is True
+    
+    def test_class_two(self, qa_db_class):
+        """Same connection as test_class_one."""
+        assert qa_db_class.open is True
+
+
+class TestUsingDbManager:
+    """
+    Tests using db_manager directly.
+    Most flexible approach.
+    """
+    
+    def test_execute_with_retry(self, db_manager):
+        """execute_query has built-in retry."""
+        result = db_manager.execute_query("qa", "SELECT 1")
+        assert result is not None
+    
+    def test_multiple_environments(self, db_manager):
+        """Access multiple DBs."""
+        qa_result = db_manager.execute_query("qa", "SELECT 'qa'")
+        uat_result = db_manager.execute_query("uat1", "SELECT 'uat1'")
+        
+        assert qa_result is not None
+        assert uat_result is not None
