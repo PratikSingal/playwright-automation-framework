@@ -1,0 +1,24 @@
+Subject: Regression Automation – Source of Truth Fix
+
+Hi [Manager's Name],
+
+Post my discussion with Mick, wanted to give you a quick update on our regression automation.
+
+**Issue**
+We were saving report snapshots as the source of truth before UAT2's HDBS data was synced from Production. This caused false differences during regression runs — driven by data drift, not code changes.
+
+**Example**
+Say we saved the source of truth for 5th May on the same day. UAT2 then syncs with Prod at midnight. When we regenerate the same report on 15th May, the numbers differ — not because of any code change, but because the underlying data changed post-sync.
+
+**Fix**
+We will now only capture the source of truth after the Prod → UAT2 sync is complete, ensuring a stable and reliable baseline.
+
+**Next Steps**
+- Apply the corrected approach to all future tickets.
+- Build the regression framework with proper test cases.
+- Revisit existing areas where snapshots were incorrectly taken as source of truth and re-baseline them.
+
+Happy to connect if you have any questions.
+
+Thanks,
+[Your Name]
